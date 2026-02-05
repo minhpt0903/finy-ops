@@ -37,6 +37,18 @@ echo "🔧 Starting Jenkins..."
 if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^jenkins$"; then
     echo "  Container exists, starting..."
     $PODMAN_CMD start jenkins
+    
+    # Ensure Docker CLI is installed
+    echo "  Checking Docker CLI installation..."
+    if ! $PODMAN_CMD exec jenkins which docker &>/dev/null; then
+        echo "  Installing Docker CLI..."
+        $PODMAN_CMD exec -u root jenkins sh -c '
+            apt-get update -qq && 
+            apt-get install -y -qq docker.io > /dev/null 2>&1
+        ' || echo "  Warning: Could not install Docker CLI"
+    else
+        echo "  Docker CLI already installed"
+    fi
 else
     echo "  Creating new container with Podman access..."
     
