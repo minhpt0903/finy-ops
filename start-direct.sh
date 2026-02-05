@@ -8,30 +8,35 @@ echo "🚀 Starting Finy-Ops Platform (Direct Podman)"
 echo ""
 
 # Check Podman
-if ! command -v podman &> /dev/null; then
+PODMAN_CMD=""
+if command -v podman &> /dev/null; then
+    PODMAN_CMD="podman"
+elif [ -x /usr/bin/podman ]; then
+    PODMAN_CMD="/usr/bin/podman"
+else
     echo "❌ Podman not found!"
     exit 1
 fi
-echo "✅ Podman: $(podman --version)"
+echo "✅ Podman: $($PODMAN_CMD --version)"
 echo ""
 
 # Create network
 echo "📡 Creating network..."
-podman network exists podman 2>/dev/null || podman network create podman
+$PODMAN_CMD network exists podman 2>/dev/null || $PODMAN_CMD network create podman
 echo ""
 
 # Create volumes
 echo "💾 Creating volumes..."
-podman volume exists jenkins_home 2>/dev/null || podman volume create jenkins_home
-podman volume exists kafka_data 2>/dev/null || podman volume create kafka_data
-podman volume exists kafka_logs 2>/dev/null || podman volume create kafka_logs
+$PODMAN_CMD volume exists jenkins_home 2>/dev/null || $PODMAN_CMD volume create jenkins_home
+$PODMAN_CMD volume exists kafka_data 2>/dev/null || $PODMAN_CMD volume create kafka_data
+$PODMAN_CMD volume exists kafka_logs 2>/dev/null || $PODMAN_CMD volume create kafka_logs
 echo ""
 
 # Start Jenkins
 echo "🔧 Starting Jenkins..."
-if podman ps -a --format "{{.Names}}" | grep -q "^jenkins$"; then
+if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^jenkins$"; then
     echo "  Container exists, starting..."
-    podman start jenkins
+    $PODMAN_CMD start jenkins
 else
     echo "  Creating new container with Podman access..."
     
@@ -42,7 +47,7 @@ else
         PODMAN_SOCK="/run/user/$(id -u)/podman/podman.sock"
     fi
     
-    podman run -d \
+    $PODMAN_CMD run -d \
         --name jenkins \
         --network podman \
         -p 8080:8080 \
@@ -59,12 +64,12 @@ echo ""
 
 # Start Kafka
 echo "📨 Starting Kafka..."
-if podman ps -a --format "{{.Names}}" | grep -q "^kafka$"; then
+if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^kafka$"; then
     echo "  Container exists, starting..."
-    podman start kafka
+    $PODMAN_CMD start kafka
 else
     echo "  Creating new container..."
-    podman run -d \
+    $PODMAN_CMD run -d \
         --name kafka \
         --network podman \
         -p 9092:9092 \
@@ -92,12 +97,12 @@ echo ""
 
 # Start Kafka UI
 echo "🖥️  Starting Kafka UI..."
-if podman ps -a --format "{{.Names}}" | grep -q "^kafka-ui$"; then
+if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^kafka-ui$"; then
     echo "  Container exists, starting..."
-    podman start kafka-ui
+    $PODMAN_CMD start kafka-ui
 else
     echo "  Creating new container..."
-    podman run -d \
+    $PODMAN_CMD run -d \
         --name kafka-ui \
         --network podman \
         -p 8090:8080 \
@@ -117,14 +122,14 @@ echo ""
 
 # Check status
 echo "📊 Service Status:"
-podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "jenkins|kafka"
+$PODMAN_CMD ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "jenkins|kafka"
 echo ""
 
 # Get Jenkins password
 echo "🔐 Jenkins Initial Admin Password:"
 sleep 5
-if podman exec jenkins test -f /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null; then
-    JENKINS_PASSWORD=$(podman exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null)
+if $PODMAN_CMD exec jenkins test -f /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null; then
+    JENKINS_PASSWORD=$($PODMAN_CMD exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null)
     echo "  $JENKINS_PASSWORD"
 else
     echo "  (Not ready yet, check in a moment)"
@@ -148,8 +153,8 @@ echo "  3. Install suggested plugins"
 echo "  4. Create admin user"
 echo ""
 echo "🔍 Check logs:"
-echo "  podman logs -f jenkins"
-echo "  podman logs -f kafka"
+echo "  $PODMAN_CMD logs -f jenkins"
+echo "  $PODMAN_CMD logs -f kafka"
 echo ""
 echo "🛑 Stop services:"
 echo "  ./stop.sh"
