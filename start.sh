@@ -9,15 +9,35 @@ echo ""
 
 # Check if Podman is installed
 echo "📦 Checking Podman installation..."
-if ! command -v podman &> /dev/null; then
-    echo "❌ Podman is not installed!"
+
+# Try different ways to detect podman
+PODMAN_CMD=""
+if command -v podman &> /dev/null; then
+    PODMAN_CMD="podman"
+elif command -v /usr/bin/podman &> /dev/null; then
+    PODMAN_CMD="/usr/bin/podman"
+elif [ -f /usr/bin/podman ]; then
+    PODMAN_CMD="/usr/bin/podman"
+else
+    echo "❌ Podman is not installed or not in PATH!"
+    echo ""
+    echo "Debug info:"
+    echo "  PATH: $PATH"
+    echo "  which podman: $(which podman 2>&1 || echo 'not found')"
+    echo "  /usr/bin/podman exists: $([ -f /usr/bin/podman ] && echo 'yes' || echo 'no')"
+    echo ""
     echo "Please install Podman:"
-    echo "  Ubuntu/Debian: sudo apt-get install podman"
-    echo "  Fedora/RHEL:   sudo dnf install podman"
+    echo "  Ubuntu/Debian: sudo apt-get install -y podman"
+    echo "  Fedora/RHEL:   sudo dnf install -y podman"
     echo "  macOS:         brew install podman"
+    echo ""
+    echo "After install, try: source ~/.bashrc"
     exit 1
 fi
-echo "✅ Podman found: $(podman --version)"
+
+PODMAN_VERSION=$($PODMAN_CMD --version 2>&1 || echo "unknown")
+echo "✅ Podman found: $PODMAN_VERSION"
+echo "   Location: $PODMAN_CMD"
 echo ""
 
 # Check for compose command
@@ -26,12 +46,20 @@ COMPOSE_CMD=""
 if command -v podman-compose &> /dev/null; then
     COMPOSE_CMD="podman-compose"
     echo "✅ Using podman-compose"
+elif $PODMAN_CMD compose version &> /dev/null; then
+    COMPOSE_CMD="$PODMAN_CMD compose"
+    echo "✅ Using podman compose (built-in)"
 elif command -v docker-compose &> /dev/null; then
     COMPOSE_CMD="docker-compose"
-    echo "✅ Using docker-compose (Podman compatible)"
+    echo "⚠️  Using docker-compose (compatibility mode)"
 else
-    COMPOSE_CMD="podman compose"
-    echo "⚠️  Using podman compose (built-in)"
+    echo "❌ No compose tool found!"
+    echo ""
+    echo "Install podman-compose:"
+    echo "  pip3 install podman-compose"
+    echo "  # Or"
+    echo "  sudo apt-get install -y podman-compose"
+    exit 1
 fi
 echo ""
 
