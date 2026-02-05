@@ -43,22 +43,36 @@ echo ""
 # Check for compose command
 echo "📦 Checking Podman Compose..."
 COMPOSE_CMD=""
-if command -v podman-compose &> /dev/null; then
-    COMPOSE_CMD="podman-compose"
-    echo "✅ Using podman-compose"
-elif $PODMAN_CMD compose version &> /dev/null; then
+
+# Try built-in podman compose first (more stable)
+if $PODMAN_CMD compose version &> /dev/null; then
     COMPOSE_CMD="$PODMAN_CMD compose"
     echo "✅ Using podman compose (built-in)"
+# Then try external podman-compose
+elif command -v podman-compose &> /dev/null; then
+    # Check if podman-compose works
+    if podman-compose --version &> /dev/null; then
+        COMPOSE_CMD="podman-compose"
+        echo "✅ Using podman-compose"
+    else
+        echo "⚠️  podman-compose found but not working, trying built-in..."
+        if $PODMAN_CMD compose version &> /dev/null; then
+            COMPOSE_CMD="$PODMAN_CMD compose"
+            echo "✅ Using podman compose (built-in)"
+        else
+            echo "❌ No working compose tool found!"
+            exit 1
+        fi
+    fi
+# Last resort: docker-compose
 elif command -v docker-compose &> /dev/null; then
     COMPOSE_CMD="docker-compose"
     echo "⚠️  Using docker-compose (compatibility mode)"
 else
     echo "❌ No compose tool found!"
     echo ""
-    echo "Install podman-compose:"
-    echo "  pip3 install podman-compose"
-    echo "  # Or"
-    echo "  sudo apt-get install -y podman-compose"
+    echo "Try: podman compose version"
+    echo "Or install: pip3 install podman-compose"
     exit 1
 fi
 echo ""
@@ -70,10 +84,27 @@ echo ""
 
 # Start services
 echo "🐳 Starting services..."
+echo "  Command: $COMPOSE_CMD -f podman-compose.yml up -d"
 echo "  This may take a few minutes on first run..."
 echo ""
 
-$COMPOSE_CMD up -d
+# Use explicit file and better error handling
+if ! $COMPOSE_CMD -f podman-compose.yml up -d 2>&1; then
+    echo ""
+    echo "❌ Failed to start services!"
+    echo ""
+    echo "Troubleshooting:"
+    echo "  1. Check compose file syntax:"
+    echo "     $COMPOSE_CMD -f podman-compose.yml config"
+    echo ""
+    echo "  2. Try manual start:"
+    echo "     podman compose -f podman-compose.yml up -d"
+    echo ""
+    echo "  3. Check logs:"
+    echo "     $COMPOSE_CMD -f podman-compose.yml logs"
+    echo ""
+    exit 1
+fi
 
 # Wait for services
 echo ""
