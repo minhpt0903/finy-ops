@@ -43,36 +43,39 @@ echo ""
 # Check for compose command
 echo "📦 Checking Podman Compose..."
 COMPOSE_CMD=""
+COMPOSE_WORKING=false
 
-# Try built-in podman compose first (more stable)
-if $PODMAN_CMD compose version &> /dev/null; then
+# Try built-in podman compose first (most stable)
+if $PODMAN_CMD compose version &> /dev/null 2>&1; then
     COMPOSE_CMD="$PODMAN_CMD compose"
     echo "✅ Using podman compose (built-in)"
+    COMPOSE_WORKING=true
 # Then try external podman-compose
 elif command -v podman-compose &> /dev/null; then
-    # Check if podman-compose works
-    if podman-compose --version &> /dev/null; then
+    echo "⚠️  Found podman-compose, testing..."
+    # Test if it actually works
+    if podman-compose --version &> /dev/null 2>&1; then
         COMPOSE_CMD="podman-compose"
         echo "✅ Using podman-compose"
+        COMPOSE_WORKING=true
     else
-        echo "⚠️  podman-compose found but not working, trying built-in..."
-        if $PODMAN_CMD compose version &> /dev/null; then
-            COMPOSE_CMD="$PODMAN_CMD compose"
-            echo "✅ Using podman compose (built-in)"
-        else
-            echo "❌ No working compose tool found!"
-            exit 1
-        fi
+        echo "❌ podman-compose is broken (version 1.0.6 has known issues)"
+        echo ""
     fi
-# Last resort: docker-compose
-elif command -v docker-compose &> /dev/null; then
-    COMPOSE_CMD="docker-compose"
-    echo "⚠️  Using docker-compose (compatibility mode)"
-else
-    echo "❌ No compose tool found!"
+fi
+
+# If no working compose found, use direct podman
+if [ "$COMPOSE_WORKING" = false ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "⚠️  No working compose tool found!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo "Try: podman compose version"
-    echo "Or install: pip3 install podman-compose"
+    echo "Solution: Use direct podman script instead"
+    echo ""
+    echo "  ./start-direct.sh"
+    echo ""
+    echo "This script doesn't need compose and works perfectly!"
+    echo ""
     exit 1
 fi
 echo ""
