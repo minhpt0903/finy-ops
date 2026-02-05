@@ -90,87 +90,33 @@ pipeline {
             }
         }
         
-        stage('Build Image') {
-            steps {
-                script {
-                    def imageTag = "${APP_NAME}:${params.ENVIRONMENT}-${BUILD_NUMBER}"
-                    echo "=========================================="
-                    echo "Building container image..."
-                    echo "Image: ${imageTag}"
-                    echo "Spring Profile: ${SPRING_PROFILE}"
-                    echo "=========================================="
-                    
-                    // Tạo Dockerfile inline
-                    sh '''
-                        cat > Dockerfile.tmp <<'EOF'
-FROM docker.io/openjdk:17-jdk-slim
-WORKDIR /app
-COPY build/libs/*.jar app.jar
-EXPOSE 9200
-ENTRYPOINT ["java", "-jar", "app.jar"]
-EOF
-                    '''
-                    
-                    // Dùng docker CLI (tương thích với podman socket)
-                    sh """
-                        docker build -t ${imageTag} -f Dockerfile.tmp .
-                    """
-                }
-            }
-        }
-        
-        stage('Deploy') {
-            steps {
-                script {
-                    def imageTag = "${APP_NAME}:${params.ENVIRONMENT}-${BUILD_NUMBER}"
-                    def containerName = "${APP_NAME}-${params.ENVIRONMENT}"
-                    
-                    echo "=========================================="
-                    echo "Deploying to ${params.ENVIRONMENT} environment"
-                    echo "Spring Profile: ${SPRING_PROFILE}"
-                    echo "Container: ${containerName}"
-                    echo "Port: ${APP_PORT}:9200"
-                    echo "=========================================="
-                    
-                    // Stop and remove old container
-                    sh """
-                        docker stop ${containerName} 2>/dev/null || true
-                        docker rm ${containerName} 2>/dev/null || true
-                    """
-                    
-                    // Run new container
-                    sh """
-                        docker run -d --name ${containerName} \
-                            --network podman \
-                            -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
-                            -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \
-                            -p ${APP_PORT}:9200 \
-                            --restart unless-stopped \
-                            ${imageTag}
-                    """
-                    
-                    // Wait and check logs
-                    sh """
-                        echo 'Waiting for application to start...'
-                        sleep 10
-                        docker logs --tail 30 ${containerName}
-                    """
-                    
-                    echo "=========================================="
-                    echo "✓ Deployment completed!"
-                    echo "Application URL: http://localhost:${APP_PORT}"
-                    echo "Container: ${containerName} (${imageTag})"
-                    echo ""
-                    echo "View logs: docker logs -f ${containerName}"
-                    echo "Stop: docker stop ${containerName}"
-                    echo "=========================================="
-                }
-            }
-        }
-        
         stage('Archive Artifacts') {
             steps {
                 archiveArtifacts artifacts: 'build/libs/*.jar', fingerprint: true
+                
+                echo "=========================================="
+                echo "✅ Build completed!"
+                echo "=========================================="
+                echo "JAR file: build/libs/*.jar"
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "Spring Profile: ${SPRING_PROFILE}"
+                echo ""
+                echo "Download JAR from Jenkins UI, then deploy manually:"
+                echo ""
+                echo "# Build and deploy với Podman:"
+                echo "# 1. Download JAR artifact từ Jenkins"
+                echo "# 2. Build image:"
+                echo "podman build -t ${APP_NAME}:${params.ENVIRONMENT} ."
+                echo ""
+                echo "# 3. Deploy:"
+                echo "podman run -d --name ${APP_NAME}-${params.ENVIRONMENT} \\"
+                echo "  --network podman \\"
+                echo "  -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\"
+                echo "  -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \\"
+                echo "  -p ${APP_PORT}:9200 \\"
+                echo "  --restart unless-stopped \\"
+                echo "  ${APP_NAME}:${params.ENVIRONMENT}"
+                echo "=========================================="
             }
         }
     }

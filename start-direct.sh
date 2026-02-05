@@ -37,27 +37,8 @@ echo "🔧 Starting Jenkins..."
 if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^jenkins$"; then
     echo "  Container exists, starting..."
     $PODMAN_CMD start jenkins
-    
-    # Ensure Docker CLI is installed
-    echo "  Checking Docker CLI installation..."
-    if ! $PODMAN_CMD exec jenkins which docker &>/dev/null; then
-        echo "  Installing Docker CLI..."
-        $PODMAN_CMD exec -u root jenkins sh -c '
-            apt-get update -qq && 
-            apt-get install -y -qq docker.io > /dev/null 2>&1
-        ' || echo "  Warning: Could not install Docker CLI"
-    else
-        echo "  Docker CLI already installed"
-    fi
 else
-    echo "  Creating new container with Podman access..."
-    
-    # Xác định podman socket path
-    PODMAN_SOCK="/run/podman/podman.sock"
-    if [ ! -S "$PODMAN_SOCK" ]; then
-        # Nếu chạy rootless
-        PODMAN_SOCK="/run/user/$(id -u)/podman/podman.sock"
-    fi
+    echo "  Creating new container..."
     
     $PODMAN_CMD run -d \
         --name jenkins \
@@ -65,22 +46,8 @@ else
         -p 8080:8080 \
         -p 50000:50000 \
         -v jenkins_home:/var/jenkins_home:Z \
-        -v $PODMAN_SOCK:/var/run/podman.sock:Z \
-        -v $(pwd)/jenkins-deploy.sh:/usr/local/bin/jenkins-deploy.sh:ro \
-        -e DOCKER_HOST=unix:///var/run/podman.sock \
-        --user root \
-        --security-opt label=disable \
         --restart unless-stopped \
         docker.io/jenkins/jenkins:lts-jdk17
-    
-    # Cài docker CLI trong Jenkins container (tương thích với podman socket)
-    echo "  Installing Docker CLI in Jenkins container..."
-    sleep 5
-    $PODMAN_CMD exec -u root jenkins sh -c '
-        apt-get update -qq && 
-        apt-get install -y -qq docker.io > /dev/null 2>&1 &&
-        usermod -aG docker jenkins
-    ' || true
 fi
 echo "  ✅ Jenkins started"
 echo ""

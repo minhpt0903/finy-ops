@@ -1,22 +1,16 @@
 #!/bin/bash
-# Script chạy trên HOST để build image và deploy
-# Jenkins sẽ gọi script này sau khi build JAR
+# Script deploy ứng dụng với Podman
+# Chạy trên HOST sau khi Jenkins build xong JAR
 
 set -e
 
 # Parse arguments
-ENVIRONMENT=$1
-BUILD_NUMBER=$2
-WORKSPACE=$3
-
-if [ -z "$ENVIRONMENT" ] || [ -z "$BUILD_NUMBER" ] || [ -z "$WORKSPACE" ]; then
-    echo "Usage: $0 <test|production> <build_number> <workspace_path>"
-    exit 1
-fi
+ENVIRONMENT=${1:-test}
+JAR_FILE=${2:-build/libs/apigateway-0.1.jar}
 
 # Config
 APP_NAME="lendbiz-apigateway"
-IMAGE_TAG="${APP_NAME}:${ENVIRONMENT}-${BUILD_NUMBER}"
+IMAGE_TAG="${APP_NAME}:${ENVIRONMENT}"
 CONTAINER_NAME="${APP_NAME}-${ENVIRONMENT}"
 
 # Set profile and port based on environment
@@ -31,14 +25,13 @@ fi
 KAFKA_SERVERS="42.112.38.103:9092"
 
 echo "=========================================="
-echo "Building and Deploying Application"
+echo "Deploying Application with Podman"
 echo "=========================================="
 echo "Environment: $ENVIRONMENT"
 echo "Spring Profile: $SPRING_PROFILE"
-echo "Build Number: $BUILD_NUMBER"
+echo "JAR file: $JAR_FILE"
 echo "Image: $IMAGE_TAG"
 echo "Port: $APP_PORT"
-echo "Workspace: $WORKSPACE"
 echo "=========================================="
 echo ""
 
@@ -53,20 +46,16 @@ if ! command -v podman &> /dev/null; then
     fi
 fi
 
-# Create Dockerfile
-echo "📝 Creating Dockerfile..."
-cat > $WORKSPACE/Dockerfile.deploy <<'EOF'
-FROM docker.io/openjdk:17-jdk-slim
-WORKDIR /app
-COPY build/libs/*.jar app.jar
-EXPOSE 9200
-ENTRYPOINT ["java", "-jar", "app.jar"]
-EOF
+# Check JAR file exists
+if [ ! -f "$JAR_FILE" ]; then
+    echo "❌ JAR file not found: $JAR_FILE"
+    echo "Please download JAR from Jenkins artifacts first"
+    exit 1
+fi
 
 # Build image
-echo "🔨 Building container image..."
-cd $WORKSPACE
-$PODMAN_CMD build -t $IMAGE_TAG -f Dockerfile.deploy .
+echo "🔨 Building container image with Podman..."
+$PODMAN_CMD build -t $IMAGE_TAG .
 echo "✅ Image built: $IMAGE_TAG"
 echo ""
 
@@ -104,5 +93,9 @@ echo "Application URL: http://localhost:$APP_PORT"
 echo "Container: $CONTAINER_NAME"
 echo "Image: $IMAGE_TAG"
 echo ""
-echo "View logs: $PODMAN_CMD logs -f $CONTAINER_NAME"
+echo "Commands:"
+echo "  View logs: $PODMAN_CMD logs -f $CONTAINER_NAME"
+echo "  Stop:      $PODMAN_CMD stop $CONTAINER_NAME"
+echo "  Restart:   $PODMAN_CMD restart $CONTAINER_NAME"
+echo "  Remove:    $PODMAN_CMD rm -f $CONTAINER_NAME"
 echo "=========================================="
