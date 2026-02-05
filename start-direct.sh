@@ -33,13 +33,24 @@ if podman ps -a --format "{{.Names}}" | grep -q "^jenkins$"; then
     echo "  Container exists, starting..."
     podman start jenkins
 else
-    echo "  Creating new container..."
+    echo "  Creating new container with Podman access..."
+    
+    # Xác định podman socket path
+    PODMAN_SOCK="/run/podman/podman.sock"
+    if [ ! -S "$PODMAN_SOCK" ]; then
+        # Nếu chạy rootless
+        PODMAN_SOCK="/run/user/$(id -u)/podman/podman.sock"
+    fi
+    
     podman run -d \
         --name jenkins \
         --network podman \
         -p 8080:8080 \
         -p 50000:50000 \
         -v jenkins_home:/var/jenkins_home:Z \
+        -v $PODMAN_SOCK:/var/run/podman.sock:Z \
+        -v /usr/bin/podman:/usr/bin/podman:ro \
+        --security-opt label=disable \
         --restart unless-stopped \
         docker.io/jenkins/jenkins:lts-jdk17
 fi
