@@ -41,7 +41,7 @@ else
         -p 50000:50000 \
         -v jenkins_home:/var/jenkins_home:Z \
         --restart unless-stopped \
-        jenkins/jenkins:lts-jdk17
+        docker.io/jenkins/jenkins:lts-jdk17
 fi
 echo "  ✅ Jenkins started"
 echo ""
@@ -74,7 +74,7 @@ else
         -e KAFKA_LOG_DIRS=/var/lib/kafka/data \
         -e CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk \
         --restart unless-stopped \
-        apache/kafka:3.8.1
+        docker.io/apache/kafka:3.8.1
 fi
 echo "  ✅ Kafka started"
 echo ""
@@ -94,7 +94,7 @@ else
         -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092 \
         -e DYNAMIC_CONFIG_ENABLED=true \
         --restart unless-stopped \
-        provectuslabs/kafka-ui:latest
+        docker.io/provectuslabs/kafka-ui:latest
 fi
 echo "  ✅ Kafka UI started"
 echo ""
