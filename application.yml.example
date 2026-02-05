@@ -1,0 +1,142 @@
+# Spring Boot Application Properties for Kafka Integration
+# Copy relevant sections to your application.yml or application.properties
+
+spring:
+  application:
+    name: your-app-name
+    
+  # Spring Boot 2.7.8 Kafka Configuration
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    
+    # Producer Configuration
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # Acknowledgement level: all = leader + all replicas must acknowledge
+      acks: all
+      # Number of retries on transient errors
+      retries: 3
+      # Batch size in bytes
+      batch-size: 16384
+      # Wait time before sending batch
+      linger-ms: 10
+      # Buffer memory for producer
+      buffer-memory: 33554432
+      # Enable idempotent producer (exactly-once semantics)
+      enable-idempotence: true
+      # Compression type
+      compression-type: snappy
+      # Transaction ID for transactional producers
+      # transaction-id-prefix: tx-
+      
+    # Consumer Configuration  
+    consumer:
+      group-id: ${spring.application.name}-group
+      # What to do when there is no initial offset
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Enable auto-commit
+      enable-auto-commit: true
+      auto-commit-interval-ms: 1000
+      # Max records per poll
+      max-poll-records: 500
+      # Session timeout
+      session-timeout-ms: 30000
+      # Heartbeat interval
+      heartbeat-interval-ms: 3000
+      
+    # Listener Configuration
+    listener:
+      # Concurrency level (number of threads per listener)
+      concurrency: 3
+      # Acknowledgement mode: manual, batch, record, etc.
+      ack-mode: batch
+      # Missing topics fatal
+      missing-topics-fatal: false
+      
+    # Admin Configuration (for topic creation)
+    admin:
+      fail-fast: false
+      properties:
+        bootstrap.servers: ${spring.kafka.bootstrap-servers}
+        
+  # Actuator endpoints for health checks
+  actuator:
+    exposure:
+      include: health,info,metrics,prometheus
+      
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    org.springframework.kafka: DEBUG
+    org.apache.kafka: INFO
+    ${package.name}: DEBUG
+    
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+  shutdown: graceful
+    
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  health:
+    kafka:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+---
+# Development Profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+  kafka:
+    bootstrap-servers: localhost:9092
+    
+logging:
+  level:
+    root: DEBUG
+
+---
+# Staging Profile  
+spring:
+  config:
+    activate:
+      on-profile: staging
+  kafka:
+    bootstrap-servers: kafka:9092
+
+---
+# Production Profile
+spring:
+  config:
+    activate:
+      on-profile: production
+  kafka:
+    bootstrap-servers: kafka:9092
+    producer:
+      retries: 5
+      acks: all
+    consumer:
+      enable-auto-commit: false
+      
+logging:
+  level:
+    root: WARN
+    ${package.name}: INFO
