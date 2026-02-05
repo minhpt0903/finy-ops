@@ -54,10 +54,21 @@ else
         -p 50000:50000 \
         -v jenkins_home:/var/jenkins_home:Z \
         -v $PODMAN_SOCK:/var/run/podman.sock:Z \
-        -v /usr/bin/podman:/usr/bin/podman:ro \
+        -v $(pwd)/jenkins-deploy.sh:/usr/local/bin/jenkins-deploy.sh:ro \
+        -e DOCKER_HOST=unix:///var/run/podman.sock \
+        --user root \
         --security-opt label=disable \
         --restart unless-stopped \
         docker.io/jenkins/jenkins:lts-jdk17
+    
+    # Cài docker CLI trong Jenkins container (tương thích với podman socket)
+    echo "  Installing Docker CLI in Jenkins container..."
+    sleep 5
+    $PODMAN_CMD exec -u root jenkins sh -c '
+        apt-get update -qq && 
+        apt-get install -y -qq docker.io > /dev/null 2>&1 &&
+        usermod -aG docker jenkins
+    ' || true
 fi
 echo "  ✅ Jenkins started"
 echo ""

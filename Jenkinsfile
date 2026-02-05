@@ -100,7 +100,7 @@ pipeline {
                     echo "Spring Profile: ${SPRING_PROFILE}"
                     echo "=========================================="
                     
-                    // Tạo Dockerfile inline nếu chưa có
+                    // Tạo Dockerfile inline
                     sh '''
                         cat > Dockerfile.tmp <<'EOF'
 FROM docker.io/openjdk:17-jdk-slim
@@ -111,9 +111,9 @@ ENTRYPOINT ["java", "-jar", "app.jar"]
 EOF
                     '''
                     
+                    // Dùng docker CLI (tương thích với podman socket)
                     sh """
-                        export CONTAINER_HOST=unix:///var/run/podman.sock
-                        podman build -t ${imageTag} -f Dockerfile.tmp .
+                        docker build -t ${imageTag} -f Dockerfile.tmp .
                     """
                 }
             }
@@ -132,17 +132,15 @@ EOF
                     echo "Port: ${APP_PORT}:9200"
                     echo "=========================================="
                     
-                    // Stop and remove old container if exists
+                    // Stop and remove old container
                     sh """
-                        export CONTAINER_HOST=unix:///var/run/podman.sock
-                        podman stop ${containerName} 2>/dev/null || true
-                        podman rm ${containerName} 2>/dev/null || true
+                        docker stop ${containerName} 2>/dev/null || true
+                        docker rm ${containerName} 2>/dev/null || true
                     """
                     
                     // Run new container
                     sh """
-                        export CONTAINER_HOST=unix:///var/run/podman.sock
-                        podman run -d --name ${containerName} \
+                        docker run -d --name ${containerName} \
                             --network podman \
                             -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
                             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \
@@ -153,16 +151,18 @@ EOF
                     
                     // Wait and check logs
                     sh """
-                        export CONTAINER_HOST=unix:///var/run/podman.sock
                         echo 'Waiting for application to start...'
                         sleep 10
-                        podman logs --tail 30 ${containerName}
+                        docker logs --tail 30 ${containerName}
                     """
                     
                     echo "=========================================="
                     echo "✓ Deployment completed!"
                     echo "Application URL: http://localhost:${APP_PORT}"
-                    echo "View logs: podman logs -f ${containerName}"
+                    echo "Container: ${containerName} (${imageTag})"
+                    echo ""
+                    echo "View logs: docker logs -f ${containerName}"
+                    echo "Stop: docker stop ${containerName}"
                     echo "=========================================="
                 }
             }
