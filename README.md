@@ -167,6 +167,18 @@ ENTRYPOINT java -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-production} -
 - Test environment: `http://42.112.38.103:9201`
 - Production: `http://42.112.38.103:9200`
 
+**⚠️ Trước khi deploy PRODUCTION lần đầu:**
+
+Bạn **PHẢI** setup production credentials trong Jenkins trước! Xem chi tiết:
+
+👉 **[PRODUCTION-CREDENTIALS-SETUP.md](PRODUCTION-CREDENTIALS-SETUP.md)**
+
+Credentials cần thiết:
+- `db-production-credentials` (Username + Password)
+- `db-production-url` (JDBC URL)
+
+Jenkinsfile sẽ tự động inject credentials này vào container khi deploy production.
+
 ### Cách 2: Manual Deploy (Backup)
 
 ```bash
@@ -255,10 +267,24 @@ sudo podman stop jenkins kafka kafka-ui
 
 ## 🔐 Security Notes
 
-- Jenkins admin password: Thay đổi sau lần đăng nhập đầu
-- Kafka: Chưa có authentication (cân nhắc enable SASL cho production)
-- Podman socket: Chỉ accessible từ Jenkins container với root group
-- GitHub credentials: Sử dụng Personal Access Token, không dùng password
+### Production Credentials Management
+
+**⚠️ QUAN TRỌNG:** Production credentials (DB passwords, API keys) **KHÔNG được** lưu trong Git!
+
+**✅ Cách đúng:**
+- **Test environment**: Credentials có thể để trong `application-test.properties` (encrypted)
+- **Production**: Credentials được lưu trong **Jenkins Credentials** và inject qua environment variables
+
+**📖 Chi tiết:** Xem [PRODUCTION-CREDENTIALS-SETUP.md](PRODUCTION-CREDENTIALS-SETUP.md) để setup production credentials
+
+### General Security
+
+- **Jenkins admin password**: Thay đổi ngay sau lần đăng nhập đầu
+- **Kafka**: Chưa có authentication (cân nhắc enable SASL cho production)
+- **Podman socket**: Chỉ accessible từ Jenkins container với root group
+- **GitHub credentials**: Sử dụng Personal Access Token, không dùng password
+- **Properties files**: Không commit sensitive data vào Git
+- **Jenkins Credentials**: Backup và rotate định kỳ (3-6 tháng)
 
 ## ⚙️ Technical Details
 

@@ -125,27 +125,75 @@ pipeline {
                     echo "Port: ${APP_PORT}:9200"
                     echo "=========================================="
                     
-                    sh """
-                        export CONTAINER_HOST=unix:///run/podman/podman.sock
+                    if (params.ENVIRONMENT == 'production') {
+                        // PRODUCTION: Inject credentials từ Jenkins Credentials
+                        echo "🔐 Loading production credentials from Jenkins..."
                         
-                        # Stop old container
-                        podman stop ${containerName} 2>/dev/null || true
-                        podman rm ${containerName} 2>/dev/null || true
+                        withCredentials([
+                            usernamePassword(
+                                credentialsId: 'db-production-credentials',
+                                usernameVariable: 'DB_USER',
+                                passwordVariable: 'DB_PASS'
+                            ),
+                            string(
+                                credentialsId: 'db-production-url',
+                                variable: 'DB_URL'
+                            )
+                        ]) {
+                            sh """
+                                export CONTAINER_HOST=unix:///run/podman/podman.sock
+                                
+                                # Stop old container
+                                podman stop ${containerName} 2>/dev/null || true
+                                podman rm ${containerName} 2>/dev/null || true
+                                
+                                # Run new container with production credentials
+                                podman run -d --name ${containerName} \\
+                                    --network podman \\
+                                    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+                                    -e SPRING_DATASOURCE_URL=\${DB_URL} \\
+                                    -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \\
+                                    -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \\
+                                    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \\
+                                    -p ${APP_PORT}:9200 \\
+                                    --restart unless-stopped \\
+                                    ${imageTag}
+                                
+                                # Wait and show logs
+                                echo 'Waiting for application to start...'
+                                sleep 10
+                                podman logs --tail 30 ${containerName}
+                            """
+                        }
                         
-                        # Run new container
-                        podman run -d --name ${containerName} \
-                            --network podman \
-                            -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
-                            -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \
-                            -p ${APP_PORT}:9200 \
-                            --restart unless-stopped \
-                            ${imageTag}
+                        echo "✅ Production deployed with injected credentials"
                         
-                        # Wait and show logs
-                        echo 'Waiting for application to start...'
-                        sleep 10
-                        podman logs --tail 30 ${containerName}
-                    """
+                    } else {
+                        // TEST: Dùng credentials từ application-test.properties
+                        echo "📋 Using credentials from application-test.properties"
+                        
+                        sh """
+                            export CONTAINER_HOST=unix:///run/podman/podman.sock
+                            
+                            # Stop old container
+                            podman stop ${containerName} 2>/dev/null || true
+                            podman rm ${containerName} 2>/dev/null || true
+                            
+                            # Run new container
+                            podman run -d --name ${containerName} \\
+                                --network podman \\
+                                -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+                                -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \\
+                                -p ${APP_PORT}:9200 \\
+                                --restart unless-stopped \\
+                                ${imageTag}
+                            
+                            # Wait and show logs
+                            echo 'Waiting for application to start...'
+                            sleep 10
+                            podman logs --tail 30 ${containerName}
+                        """
+                    }
                     
                     echo "=========================================="
                     echo "✅ Deployment completed!"
