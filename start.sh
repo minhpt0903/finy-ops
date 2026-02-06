@@ -53,7 +53,7 @@ else
     $PODMAN_CMD run -d \
         --name jenkins \
         --network podman \
-        -p 8080:8080 \
+        -p 3200:8080 \
         -p 50000:50000 \
         -v jenkins_home:/var/jenkins_home:Z \
         -v $PODMAN_SOCK:/run/podman/podman.sock:Z \
@@ -137,7 +137,7 @@ else
         --name kafka-ui \
         --network podman \
         --add-host kafka:$KAFKA_IP \
-        -p 8090:8080 \
+        -p 3300:8080 \
         -e KAFKA_CLUSTERS_0_NAME=local \
         -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092 \
         -e DYNAMIC_CONFIG_ENABLED=true \
@@ -173,13 +173,13 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📍 Access URLs:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🔧 Jenkins:    http://localhost:8080"
-echo "  📊 Kafka UI:   http://localhost:8090"
+echo "  🔧 Jenkins:    http://localhost:3200"
+echo "  📊 Kafka UI:   http://localhost:3300"
 echo "  📨 Kafka:      localhost:9092"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "📝 Next Steps:"
-echo "  1. Open Jenkins: http://localhost:8080"
+echo "  1. Open Jenkins: http://localhost:3200"
 echo "  2. Use password above to unlock"
 echo "  3. Install suggested plugins"
 echo "  4. Create admin user"
