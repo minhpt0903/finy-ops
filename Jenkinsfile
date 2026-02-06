@@ -54,7 +54,7 @@ pipeline {
                 
                 git branch: "${params.GIT_BRANCH}",
                     url: 'https://github.com/lendbiz/apigatewayfiny.git',
-                    credentialsId: '4b9940ae-420e-427c-8259-5f8da377ea8d'
+                    credentialsId: '9732e4f1-97d7-4a9e-9190-2350776a9450'
             }
         }
         
@@ -90,33 +90,81 @@ pipeline {
             }
         }
         
+        stage('Build Image') {
+            steps {
+                script {
+                    def imageTag = "${APP_NAME}:${params.ENVIRONMENT}-${BUILD_NUMBER}"
+                    def latestTag = "${APP_NAME}:${params.ENVIRONMENT}-latest"
+                    
+                    echo "=========================================="
+                    echo "Building container image with Podman..."
+                    echo "Image: ${imageTag}"
+                    echo "Latest: ${latestTag}"
+                    echo "=========================================="
+                    
+                    sh """
+                        export CONTAINER_HOST=unix:///run/podman/podman.sock
+                        podman build -t ${imageTag} -t ${latestTag} .
+                    """
+                    
+                    echo "✅ Image built successfully"
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    def imageTag = "${APP_NAME}:${params.ENVIRONMENT}-${BUILD_NUMBER}"
+                    def containerName = "${APP_NAME}-${params.ENVIRONMENT}"
+                    
+                    echo "=========================================="
+                    echo "Deploying to ${params.ENVIRONMENT} environment"
+                    echo "Spring Profile: ${SPRING_PROFILE}"
+                    echo "Container: ${containerName}"
+                    echo "Port: ${APP_PORT}:9200"
+                    echo "=========================================="
+                    
+                    sh """
+                        export CONTAINER_HOST=unix:///run/podman/podman.sock
+                        
+                        # Stop old container
+                        podman stop ${containerName} 2>/dev/null || true
+                        podman rm ${containerName} 2>/dev/null || true
+                        
+                        # Run new container
+                        podman run -d --name ${containerName} \
+                            --network podman \
+                            -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
+                            -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \
+                            -p ${APP_PORT}:9200 \
+                            --restart unless-stopped \
+                            ${imageTag}
+                        
+                        # Wait and show logs
+                        echo 'Waiting for application to start...'
+                        sleep 10
+                        podman logs --tail 30 ${containerName}
+                    """
+                    
+                    echo "=========================================="
+                    echo "✅ Deployment completed!"
+                    echo "Application URL: http://localhost:${APP_PORT}"
+                    echo "Container: ${containerName}"
+                    echo "Image: ${imageTag}"
+                    echo ""
+                    echo "Commands:"
+                    echo "  View logs: podman logs -f ${containerName}"
+                    echo "  Stop:      podman stop ${containerName}"
+                    echo "  Restart:   podman restart ${containerName}"
+                    echo "=========================================="
+                }
+            }
+        }
+        
         stage('Archive Artifacts') {
             steps {
                 archiveArtifacts artifacts: 'build/libs/*.jar', fingerprint: true
-                
-                echo "=========================================="
-                echo "✅ Build completed!"
-                echo "=========================================="
-                echo "JAR file: build/libs/*.jar"
-                echo "Environment: ${params.ENVIRONMENT}"
-                echo "Spring Profile: ${SPRING_PROFILE}"
-                echo ""
-                echo "Download JAR from Jenkins UI, then deploy manually:"
-                echo ""
-                echo "# Build and deploy với Podman:"
-                echo "# 1. Download JAR artifact từ Jenkins"
-                echo "# 2. Build image:"
-                echo "podman build -t ${APP_NAME}:${params.ENVIRONMENT} ."
-                echo ""
-                echo "# 3. Deploy:"
-                echo "podman run -d --name ${APP_NAME}-${params.ENVIRONMENT} \\"
-                echo "  --network podman \\"
-                echo "  -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\"
-                echo "  -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \\"
-                echo "  -p ${APP_PORT}:9200 \\"
-                echo "  --restart unless-stopped \\"
-                echo "  ${APP_NAME}:${params.ENVIRONMENT}"
-                echo "=========================================="
             }
         }
     }

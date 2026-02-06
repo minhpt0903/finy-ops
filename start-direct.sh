@@ -38,7 +38,17 @@ if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^jenkins$"; then
     echo "  Container exists, starting..."
     $PODMAN_CMD start jenkins
 else
-    echo "  Creating new container..."
+    echo "  Creating new container with Podman access..."
+    
+    # Xác định podman socket path
+    PODMAN_SOCK="/run/podman/podman.sock"
+    if [ ! -S "$PODMAN_SOCK" ]; then
+        # Nếu chạy rootless
+        PODMAN_SOCK="/run/user/$(id -u)/podman/podman.sock"
+    fi
+    
+    # Enable Podman socket service
+    systemctl --user enable --now podman.socket 2>/dev/null || true
     
     $PODMAN_CMD run -d \
         --name jenkins \
@@ -46,8 +56,21 @@ else
         -p 8080:8080 \
         -p 50000:50000 \
         -v jenkins_home:/var/jenkins_home:Z \
+        -v $PODMAN_SOCK:/run/podman/podman.sock:Z \
+        --security-opt label=disable \
         --restart unless-stopped \
         docker.io/jenkins/jenkins:lts-jdk17
+    
+    # Cài podman-remote trong Jenkins container
+    echo "  Installing Podman CLI in Jenkins..."
+    sleep 8
+    $PODMAN_CMD exec -u root jenkins sh -c '
+        apt-get update -qq && 
+        apt-get install -y curl &&
+        curl -fsSL https://github.com/containers/podman/releases/download/v4.9.3/podman-remote-static-linux_amd64.tar.gz | tar -xz -C /usr/local/bin &&
+        mv /usr/local/bin/podman-remote-static-linux_amd64 /usr/local/bin/podman &&
+        chmod +x /usr/local/bin/podman
+    ' 2>/dev/null || echo "  Warning: Could not install Podman CLI"
 fi
 echo "  ✅ Jenkins started"
 echo ""
