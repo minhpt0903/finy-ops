@@ -91,11 +91,13 @@ else
     $PODMAN_CMD run -d \
         --name kafka \
         --network podman \
+        --hostname kafka \
         -p 9092:9092 \
         -p 9093:9093 \
         -v kafka_data:/var/lib/kafka/data:Z \
         -v kafka_logs:/opt/kafka/logs:Z \
         -e KAFKA_NODE_ID=1 \
+        -e KAFKA_BROKER_ID=1 \
         -e KAFKA_PROCESS_ROLES=broker,controller \
         -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
         -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 \
@@ -107,6 +109,10 @@ else
         -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
         -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
         -e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 \
+        -e KAFKA_NUM_NETWORK_THREADS=3 \
+        -e KAFKA_NUM_IO_THREADS=8 \
+        -e KAFKA_SOCKET_SEND_BUFFER_BYTES=102400 \
+        -e KAFKA_SOCKET_RECEIVE_BUFFER_BYTES=102400 \
         -e KAFKA_LOG_DIRS=/var/lib/kafka/data \
         -e CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk \
         --restart unless-stopped \
