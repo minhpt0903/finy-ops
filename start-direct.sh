@@ -67,9 +67,15 @@ else
     $PODMAN_CMD exec -u root jenkins sh -c '
         apt-get update -qq && 
         apt-get install -y curl &&
-        curl -fsSL https://github.com/containers/podman/releases/download/v4.9.3/podman-remote-static-linux_amd64.tar.gz | tar -xz -C /usr/local/bin &&
-        mv /usr/local/bin/podman-remote-static-linux_amd64 /usr/local/bin/podman &&
-        chmod +x /usr/local/bin/podman
+        cd /tmp &&
+        curl -fsSL -o podman.tar.gz https://github.com/containers/podman/releases/download/v4.9.3/podman-remote-static-linux_amd64.tar.gz &&
+        tar -xzf podman.tar.gz &&
+        mv bin/podman-remote-static-linux_amd64 /usr/local/bin/podman &&
+        chmod +x /usr/local/bin/podman &&
+        rm -rf /tmp/podman.tar.gz /tmp/bin &&
+        usermod -aG root jenkins &&
+        mkdir -p /etc/containers &&
+        printf "unqualified-search-registries = [\"docker.io\"]\n" > /etc/containers/registries.conf
     ' 2>/dev/null || echo "  Warning: Could not install Podman CLI"
 fi
 echo "  ✅ Jenkins started"

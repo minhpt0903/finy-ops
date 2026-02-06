@@ -1,0 +1,3 @@
+FROM eclipse-temurin:17-jre
+COPY build/libs/apigateway-0.1.jar api.jar
+ENTRYPOINT ["java","-jar","/api.jar"]
