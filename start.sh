@@ -128,9 +128,15 @@ if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^kafka-ui$"; then
     $PODMAN_CMD start kafka-ui
 else
     echo "  Creating new container..."
+    
+    # Get Kafka IP dynamically
+    KAFKA_IP=$($PODMAN_CMD inspect kafka --format '{{.NetworkSettings.Networks.podman.IPAddress}}' 2>/dev/null || echo "kafka")
+    echo "  Kafka address: $KAFKA_IP:9092"
+    
     $PODMAN_CMD run -d \
         --name kafka-ui \
         --network podman \
+        --add-host kafka:$KAFKA_IP \
         -p 8090:8080 \
         -e KAFKA_CLUSTERS_0_NAME=local \
         -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092 \

@@ -143,17 +143,23 @@ pipeline {
                         sh """
                             export CONTAINER_HOST=unix:///run/podman/podman.sock
                             
+                            # Get Kafka IP dynamically
+                            KAFKA_IP=\$(podman inspect kafka --format '{{.NetworkSettings.Networks.podman.IPAddress}}' 2>/dev/null || echo "10.88.0.1")
+                            echo "🔍 Detected Kafka IP: \${KAFKA_IP}"
+                            
                             # Stop old container
                             podman stop ${containerName} 2>/dev/null || true
                             podman rm ${containerName} 2>/dev/null || true
                             
-                            # Run new container with injected credentials
+                            # Run new container with dynamic DNS
                             podman run -d --name ${containerName} \\
                                 --network podman \\
+                                --add-host kafka:\${KAFKA_IP} \\
                                 -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
                                 -e SPRING_DATASOURCE_URL=\${DB_URL} \\
                                 -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \\
                                 -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \\
+                                -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
                                 -p ${APP_PORT}:9200 \\
                                 --restart unless-stopped \\
                                 ${imageTag}
