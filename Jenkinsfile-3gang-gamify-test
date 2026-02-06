@@ -40,16 +40,12 @@ pipeline {
                     echo "Using Spring Profile: ${SPRING_PROFILE}"
                 }
                 sh 'gradle --version'
-                // Giải nén file service-account-file.json từ Jenkins credentials trước khi build/run
-                withCredentials([file(credentialsId: 'service-account-file-json', variable: 'GOOGLE_CREDENTIALS_FILE')]) {
-                    sh '''
-                        cp $GOOGLE_CREDENTIALS_FILE ./service-account-file.json
-                        gradle clean build \
-                            -Pspring.profiles.active=${SPRING_PROFILE} \
-                            -x test \
-                            --no-daemon
-                    '''
-                }
+                sh '''
+                    gradle clean build \
+                        -Pspring.profiles.active=${SPRING_PROFILE} \
+                        -x test \
+                        --no-daemon
+                '''
             }
         }
 
