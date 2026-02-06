@@ -40,12 +40,16 @@ pipeline {
                     echo "Using Spring Profile: ${SPRING_PROFILE}"
                 }
                 sh 'gradle --version'
-                sh """
-                    gradle clean build \
-                        -Pspring.profiles.active=${SPRING_PROFILE} \
-                        -x test \
-                        --no-daemon
-                """
+                // Giải nén file service-account-file.json từ Jenkins credentials trước khi build/run
+                withCredentials([file(credentialsId: 'service-account-file-json', variable: 'GOOGLE_CREDENTIALS_FILE')]) {
+                    sh '''
+                        cp $GOOGLE_CREDENTIALS_FILE ./service-account-file.json
+                        gradle clean build \
+                            -Pspring.profiles.active=${SPRING_PROFILE} \
+                            -x test \
+                            --no-daemon
+                    '''
+                }
             }
         }
 
@@ -61,6 +65,7 @@ pipeline {
                     echo "=========================================="
                     sh """
                         export CONTAINER_HOST=unix:///run/podman/podman.sock
+                        # Đảm bảo file service-account-file.json có trong context build image nếu cần
                         podman build -t ${imageTag} -t ${latestTag} .
                     """
                     echo "✅ Image built successfully"
@@ -91,27 +96,29 @@ pipeline {
                         variable: 'DB_URL'
                     )
                 ]) {
-                        sh '''
-                            export CONTAINER_HOST=unix:///run/podman/podman.sock
-                            KAFKA_IP=$(podman inspect kafka --format '{{.NetworkSettings.Networks.podman.IPAddress}}' 2>/dev/null || echo "10.88.0.1")
-                            echo "🔍 Detected Kafka IP: $KAFKA_IP"
-                            podman stop ${APP_NAME}-test 2>/dev/null || true
-                            podman rm ${APP_NAME}-test 2>/dev/null || true
-                            podman run -d --name ${APP_NAME}-test \
-                                --network podman \
-                                --add-host kafka:$KAFKA_IP \
-                                -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
-                                -e SPRING_DATASOURCE_URL=${DB_URL} \
-                                -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
-                                -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
-                                -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
-                                -p ${APP_PORT}:9005 \
-                                --restart unless-stopped \
-                                ${APP_NAME}:test-${BUILD_NUMBER}
-                            echo 'Waiting for application to start...'
-                            sleep 10
-                            podman logs --tail 30 ${APP_NAME}-test
-                        '''
+                    sh '''
+                        export CONTAINER_HOST=unix:///run/podman/podman.sock
+                        KAFKA_IP=$(podman inspect kafka --format '{{.NetworkSettings.Networks.podman.IPAddress}}' 2>/dev/null || echo "10.88.0.1")
+                        echo "🔍 Detected Kafka IP: $KAFKA_IP"
+                        podman stop ${APP_NAME}-test 2>/dev/null || true
+                        podman rm ${APP_NAME}-test 2>/dev/null || true
+                        podman run -d --name ${APP_NAME}-test \
+                            --network podman \
+                            --add-host kafka:$KAFKA_IP \
+                            -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
+                            -e SPRING_DATASOURCE_URL=${DB_URL} \
+                            -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
+                            -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
+                            -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+                            -e GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/service-account-file.json \
+                            -p ${APP_PORT}:9005 \
+                            -v /home/credentials/service-account-file.json:/run/secrets/service-account-file.json:ro \
+                            --restart unless-stopped \
+                            ${APP_NAME}:test-${BUILD_NUMBER}
+                        echo 'Waiting for application to start...'
+                        sleep 10
+                        podman logs --tail 30 ${APP_NAME}-test
+                    '''
                 }
                 script {
                     echo "✅ TEST deployed with injected credentials"
@@ -145,7 +152,7 @@ pipeline {
         }
         failure {
             echo "========================================="
-            echo "✗ Build FAILED"  
+            echo "✗ Build FAILED"
             echo "Build: #${BUILD_NUMBER}"
             echo "========================================="
         }
