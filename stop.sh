@@ -1,31 +1,23 @@
 #!/bin/bash
-# Stop Script for Finy-Ops Platform (Linux/Mac)
-# Usage: ./stop.sh
+# Stop services (direct podman)
 
-set -e
-
-echo "🛑 Stopping Finy-Ops Platform..."
+echo "🛑 Stopping Finy-Ops services..."
 echo ""
 
-# Check for compose command
-COMPOSE_CMD=""
-if command -v podman-compose &> /dev/null; then
-    COMPOSE_CMD="podman-compose"
-elif command -v docker-compose &> /dev/null; then
-    COMPOSE_CMD="docker-compose"
-else
-    COMPOSE_CMD="podman compose"
-fi
-
-echo "📦 Using: $COMPOSE_CMD"
-echo ""
-
-# Stop services
-echo "🐳 Stopping services..."
-$COMPOSE_CMD down
+# Stop containers
+for container in kafka-ui kafka jenkins; do
+    if podman ps -a --format "{{.Names}}" | grep -q "^$container$"; then
+        echo "Stopping $container..."
+        podman stop $container
+    fi
+done
 
 echo ""
-echo "✅ Services stopped successfully!"
+echo "✅ All services stopped"
 echo ""
-echo "💡 To start again, run: ./start.sh"
+echo "To remove containers completely:"
+echo "  podman rm jenkins kafka kafka-ui"
+echo ""
+echo "To remove volumes (⚠️ deletes all data):"
+echo "  podman volume rm jenkins_home kafka_data kafka_logs"
 echo ""

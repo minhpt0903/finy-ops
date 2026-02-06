@@ -1,157 +1,180 @@
 #!/bin/bash
-# Quick Start Script for Finy-Ops Platform (Linux/Mac)
-# Usage: ./start.sh
+# Alternative start script using podman directly (no compose)
+# Use this if podman-compose has issues
 
 set -e
 
-echo "🚀 Starting Finy-Ops Platform..."
+echo "🚀 Starting Finy-Ops Platform (Direct Podman)"
 echo ""
 
-# Check if Podman is installed
-echo "📦 Checking Podman installation..."
-
-# Try different ways to detect podman
+# Check Podman
 PODMAN_CMD=""
 if command -v podman &> /dev/null; then
     PODMAN_CMD="podman"
-elif command -v /usr/bin/podman &> /dev/null; then
-    PODMAN_CMD="/usr/bin/podman"
-elif [ -f /usr/bin/podman ]; then
+elif [ -x /usr/bin/podman ]; then
     PODMAN_CMD="/usr/bin/podman"
 else
-    echo "❌ Podman is not installed or not in PATH!"
-    echo ""
-    echo "Debug info:"
-    echo "  PATH: $PATH"
-    echo "  which podman: $(which podman 2>&1 || echo 'not found')"
-    echo "  /usr/bin/podman exists: $([ -f /usr/bin/podman ] && echo 'yes' || echo 'no')"
-    echo ""
-    echo "Please install Podman:"
-    echo "  Ubuntu/Debian: sudo apt-get install -y podman"
-    echo "  Fedora/RHEL:   sudo dnf install -y podman"
-    echo "  macOS:         brew install podman"
-    echo ""
-    echo "After install, try: source ~/.bashrc"
+    echo "❌ Podman not found!"
     exit 1
 fi
-
-PODMAN_VERSION=$($PODMAN_CMD --version 2>&1 || echo "unknown")
-echo "✅ Podman found: $PODMAN_VERSION"
-echo "   Location: $PODMAN_CMD"
+echo "✅ Podman: $($PODMAN_CMD --version)"
 echo ""
 
-# Check for compose command
-echo "📦 Checking Podman Compose..."
-COMPOSE_CMD=""
-COMPOSE_WORKING=false
+# Create network
+echo "📡 Creating network..."
+$PODMAN_CMD network exists podman 2>/dev/null || $PODMAN_CMD network create podman
+echo ""
 
-# Try built-in podman compose first (most stable)
-if $PODMAN_CMD compose version &> /dev/null 2>&1; then
-    COMPOSE_CMD="$PODMAN_CMD compose"
-    echo "✅ Using podman compose (built-in)"
-    COMPOSE_WORKING=true
-# Then try external podman-compose
-elif command -v podman-compose &> /dev/null; then
-    echo "⚠️  Found podman-compose, testing..."
-    # Test if it actually works
-    if podman-compose --version &> /dev/null 2>&1; then
-        COMPOSE_CMD="podman-compose"
-        echo "✅ Using podman-compose"
-        COMPOSE_WORKING=true
-    else
-        echo "❌ podman-compose is broken (version 1.0.6 has known issues)"
-        echo ""
+# Create volumes
+echo "💾 Creating volumes..."
+$PODMAN_CMD volume exists jenkins_home 2>/dev/null || $PODMAN_CMD volume create jenkins_home
+$PODMAN_CMD volume exists kafka_data 2>/dev/null || $PODMAN_CMD volume create kafka_data
+$PODMAN_CMD volume exists kafka_logs 2>/dev/null || $PODMAN_CMD volume create kafka_logs
+echo ""
+
+# Start Jenkins
+echo "🔧 Starting Jenkins..."
+if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^jenkins$"; then
+    echo "  Container exists, starting..."
+    $PODMAN_CMD start jenkins
+else
+    echo "  Creating new container with Podman access..."
+    
+    # Xác định podman socket path
+    PODMAN_SOCK="/run/podman/podman.sock"
+    if [ ! -S "$PODMAN_SOCK" ]; then
+        # Nếu chạy rootless
+        PODMAN_SOCK="/run/user/$(id -u)/podman/podman.sock"
     fi
+    
+    # Enable Podman socket service
+    systemctl --user enable --now podman.socket 2>/dev/null || true
+    
+    $PODMAN_CMD run -d \
+        --name jenkins \
+        --network podman \
+        -p 8080:8080 \
+        -p 50000:50000 \
+        -v jenkins_home:/var/jenkins_home:Z \
+        -v $PODMAN_SOCK:/run/podman/podman.sock:Z \
+        --security-opt label=disable \
+        --restart unless-stopped \
+        docker.io/jenkins/jenkins:lts-jdk17
+    
+    # Cài podman-remote trong Jenkins container
+    echo "  Installing Podman CLI in Jenkins..."
+    sleep 8
+    $PODMAN_CMD exec -u root jenkins sh -c '
+        apt-get update -qq && 
+        apt-get install -y curl &&
+        cd /tmp &&
+        curl -fsSL -o podman.tar.gz https://github.com/containers/podman/releases/download/v4.9.3/podman-remote-static-linux_amd64.tar.gz &&
+        tar -xzf podman.tar.gz &&
+        mv bin/podman-remote-static-linux_amd64 /usr/local/bin/podman &&
+        chmod +x /usr/local/bin/podman &&
+        rm -rf /tmp/podman.tar.gz /tmp/bin &&
+        usermod -aG root jenkins &&
+        mkdir -p /etc/containers &&
+        printf "unqualified-search-registries = [\"docker.io\"]\n" > /etc/containers/registries.conf
+    ' 2>/dev/null || echo "  Warning: Could not install Podman CLI"
 fi
-
-# If no working compose found, use direct podman
-if [ "$COMPOSE_WORKING" = false ]; then
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "⚠️  No working compose tool found!"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Solution: Use direct podman script instead"
-    echo ""
-    echo "  ./start-direct.sh"
-    echo ""
-    echo "This script doesn't need compose and works perfectly!"
-    echo ""
-    exit 1
-fi
+echo "  ✅ Jenkins started"
 echo ""
 
-# Create necessary directories
-echo "📁 Creating directories..."
-mkdir -p jenkins-data kafka-data
-echo ""
-
-# Start services
-echo "🐳 Starting services..."
-echo "  Command: $COMPOSE_CMD -f podman-compose.yml up -d"
-echo "  This may take a few minutes on first run..."
-echo ""
-
-# Use explicit file and better error handling
-if ! $COMPOSE_CMD -f podman-compose.yml up -d 2>&1; then
-    echo ""
-    echo "❌ Failed to start services!"
-    echo ""
-    echo "Troubleshooting:"
-    echo "  1. Check compose file syntax:"
-    echo "     $COMPOSE_CMD -f podman-compose.yml config"
-    echo ""
-    echo "  2. Try manual start:"
-    echo "     podman compose -f podman-compose.yml up -d"
-    echo ""
-    echo "  3. Check logs:"
-    echo "     $COMPOSE_CMD -f podman-compose.yml logs"
-    echo ""
-    exit 1
+# Start Kafka
+echo "📨 Starting Kafka..."
+if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^kafka$"; then
+    echo "  Container exists, starting..."
+    $PODMAN_CMD start kafka
+else
+    echo "  Creating new container..."
+    $PODMAN_CMD run -d \
+        --name kafka \
+        --network podman \
+        -p 9092:9092 \
+        -p 9093:9093 \
+        -v kafka_data:/var/lib/kafka/data:Z \
+        -v kafka_logs:/opt/kafka/logs:Z \
+        -e KAFKA_NODE_ID=1 \
+        -e KAFKA_PROCESS_ROLES=broker,controller \
+        -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+        -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 \
+        -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+        -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+        -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093 \
+        -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+        -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+        -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+        -e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 \
+        -e KAFKA_LOG_DIRS=/var/lib/kafka/data \
+        -e CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk \
+        --restart unless-stopped \
+        docker.io/apache/kafka:3.8.1
 fi
+echo "  ✅ Kafka started"
+echo ""
+
+# Start Kafka UI
+echo "🖥️  Starting Kafka UI..."
+if $PODMAN_CMD ps -a --format "{{.Names}}" | grep -q "^kafka-ui$"; then
+    echo "  Container exists, starting..."
+    $PODMAN_CMD start kafka-ui
+else
+    echo "  Creating new container..."
+    $PODMAN_CMD run -d \
+        --name kafka-ui \
+        --network podman \
+        -p 8090:8080 \
+        -e KAFKA_CLUSTERS_0_NAME=local \
+        -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092 \
+        -e DYNAMIC_CONFIG_ENABLED=true \
+        --restart unless-stopped \
+        docker.io/provectuslabs/kafka-ui:latest
+fi
+echo "  ✅ Kafka UI started"
+echo ""
 
 # Wait for services
-echo ""
 echo "⏳ Waiting for services to be ready..."
-sleep 15
-
-# Show status
+sleep 10
 echo ""
-echo "📊 Services Status:"
-$COMPOSE_CMD ps
 
-echo ""
-echo "🌐 Access URLs:"
-echo "  Jenkins:   http://localhost:8080"
-echo "  Kafka UI:  http://localhost:8090"
+# Check status
+echo "📊 Service Status:"
+$PODMAN_CMD ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "jenkins|kafka"
 echo ""
 
 # Get Jenkins password
-echo "🔑 Getting Jenkins initial admin password..."
+echo "🔐 Jenkins Initial Admin Password:"
 sleep 5
-PASSWORD=$(podman exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || echo "")
-
-if [ -n "$PASSWORD" ]; then
-    echo "  Initial Admin Password: $PASSWORD"
-    echo "  ⚠️  Save this password for first-time setup!"
+if $PODMAN_CMD exec jenkins test -f /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null; then
+    JENKINS_PASSWORD=$($PODMAN_CMD exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null)
+    echo "  $JENKINS_PASSWORD"
 else
-    echo "  ⚠️  Password not ready yet. Run this command in 30 seconds:"
-    echo "  podman exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword"
+    echo "  (Not ready yet, check in a moment)"
 fi
-
 echo ""
-echo "📖 Next Steps:"
+
+echo "✅ All services started!"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📍 Access URLs:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  🔧 Jenkins:    http://localhost:8080"
+echo "  📊 Kafka UI:   http://localhost:8090"
+echo "  📨 Kafka:      localhost:9092"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "📝 Next Steps:"
 echo "  1. Open Jenkins: http://localhost:8080"
-echo "  2. Use the initial admin password above"
+echo "  2. Use password above to unlock"
 echo "  3. Install suggested plugins"
-echo "  4. Create your first admin user"
-echo "  5. Check README.md for detailed instructions"
+echo "  4. Create admin user"
 echo ""
-
-echo "💡 Useful Commands:"
-echo "  View logs:     $COMPOSE_CMD logs -f jenkins"
-echo "  Stop services: $COMPOSE_CMD down"
-echo "  Restart:       $COMPOSE_CMD restart"
+echo "🔍 Check logs:"
+echo "  $PODMAN_CMD logs -f jenkins"
+echo "  $PODMAN_CMD logs -f kafka"
 echo ""
-
-echo "✨ Setup complete! Happy coding! 🚀"
+echo "🛑 Stop services:"
+echo "  ./stop.sh"
 echo ""

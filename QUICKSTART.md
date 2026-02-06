@@ -1,241 +1,208 @@
-# 🚀 Quick Start - Finy-Ops
+# 🚀 Quick Start Guide
 
-## Khởi động nhanh trong 5 phút
+Hướng dẫn nhanh để deploy ứng dụng Java Spring Boot với Jenkins CI/CD.
 
-### 1. Khởi động platform (Windows)
-
-```powershell
-# Mở PowerShell tại thư mục finy-ops
-cd d:\projects\finy-ops
-
-# Chạy script khởi động
-.\start.ps1
-```
-
-### 2. Khởi động platform (Linux/Mac)
+## 1️⃣ Khởi động Infrastructure (5 phút)
 
 ```bash
-# Mở terminal tại thư mục finy-ops
+# SSH vào Ubuntu server
+ssh minhpt@42.112.38.103
 cd ~/projects/finy-ops
 
-# Cấp quyền thực thi
-chmod +x start.sh stop.sh
-
-# Chạy script khởi động
-./start.sh
+# Chạy một lệnh duy nhất
+sudo sh ./start.sh
 ```
 
-### 3. Truy cập services
+**Kết quả:**
+- ✅ Jenkins: http://42.112.38.103:8080
+- ✅ Kafka UI: http://42.112.38.103:8090
+- ✅ Kafka: 42.112.38.103:9092
 
-Sau khi khởi động thành công:
+## 2️⃣ Setup Jenkins (10 phút)
 
-- **Jenkins**: http://localhost:8080
-  - Copy password từ terminal output
-  - Hoặc chạy: `podman exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword`
-  
-- **Kafka UI**: http://localhost:8090
-  - Không cần password, truy cập luôn
-  
-- **Kafka Broker**: `localhost:9092`
-  - Dùng trong Spring Boot config
-
-### 4. Setup Jenkins (lần đầu)
-
-1. Paste password vào Jenkins
-2. Click "Install suggested plugins" 
-3. Tạo admin user
-4. Finish!
-
-### 5. Tạo Pipeline Job
-
-#### Cách A: Multibranch Pipeline (Khuyến nghị)
-
-```
-1. New Item → Multibranch Pipeline
-2. Tên: "my-spring-boot-app"
-3. Branch Sources:
-   - Add source: Git
-   - Repository URL: https://github.com/your-org/your-repo.git
-   - Credentials: Add token GitHub
-4. Build Configuration:
-   - Mode: by Jenkinsfile
-   - Script Path: Jenkinsfile
-5. Save
-```
-
-#### Cách B: Pipeline with Parameters
-
-```
-1. New Item → Pipeline
-2. Check "This project is parameterized"
-3. Add String Parameter:
-   - Name: BRANCH_NAME
-   - Default: main
-4. Add Choice Parameter:
-   - Name: ENVIRONMENT
-   - Choices: dev, staging, production
-5. Pipeline:
-   - Definition: Pipeline script from SCM
-   - SCM: Git
-   - Repository: your-repo-url
-   - Branch: ${BRANCH_NAME}
-   - Script Path: Jenkinsfile
-6. Save
-```
-
-### 6. Deploy Spring Boot App
-
-#### Bước 1: Chuẩn bị project
+### Bước 1: Unlock Jenkins
 
 ```bash
-cd your-spring-boot-project
-
-# Copy files từ finy-ops
-cp ../finy-ops/Jenkinsfile .
-cp ../finy-ops/Dockerfile .
-cp ../finy-ops/application.yml.example src/main/resources/application-prod.yml
+# Lấy password
+sudo podman exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-#### Bước 2: Thêm Kafka dependency
+Copy password → Mở http://42.112.38.103:8080 → Paste
 
-Thêm vào `build.gradle`:
+### Bước 2: Install Plugins
 
-```gradle
-dependencies {
-    implementation 'org.springframework.kafka:spring-kafka'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-}
+- Click "Install suggested plugins"
+- Chờ cài đặt xong (~3 phút)
+
+### Bước 3: Tạo Admin User
+
+- Username: `admin`
+- Password: `<your-password>`
+- Email: `<your-email>`
+- Full Name: `Admin`
+- Save and Continue
+
+### Bước 4: Cấu hình Gradle
+
+**Manage Jenkins → Tools → Gradle installations**
+
+- Click "Add Gradle"
+- Name: `Gradle 8.0`
+- Install automatically: ✅
+- Version: **Gradle 8.0**
+- Save
+
+### Bước 5: Thêm GitHub Credentials
+
+**Manage Jenkins → Credentials → System → Global credentials → Add Credentials**
+
+- Kind: `Username with password`
+- Username: `<your-github-username>`
+- Password: `<your-github-personal-access-token>`
+- ID: `github-credentials`
+- Description: `GitHub Access`
+- Create
+
+### Bước 6: Tạo Jenkins Job
+
+**Dashboard → New Item**
+
+- Name: `Finy`
+- Type: **Pipeline**
+- OK
+
+**Configuration:**
+
+1. **General** → ✅ This project is parameterized
+   
+   Add 3 parameters:
+   
+   a. **Choice Parameter**:
+   - Name: `ENVIRONMENT`
+   - Choices: (nhập từng dòng)
+     ```
+     test
+     production
+     ```
+   - Default: `test`
+   
+   b. **String Parameter**:
+   - Name: `GIT_BRANCH`
+   - Default Value: `test`
+   - Description: `Git branch to build`
+   
+   c. **Boolean Parameter**:
+   - Name: `SKIP_TESTS`
+   - Default: `true`
+
+2. **Pipeline**:
+   - Definition: `Pipeline script from SCM`
+   - SCM: `Git`
+   - Repository URL: `https://github.com/lendbiz/apigatewayfiny.git` (thay bằng repo của bạn)
+   - Credentials: `github-credentials`
+   - Branch Specifier: `*/main`
+   - Script Path: `Jenkinsfile`
+
+3. **Save**
+
+## 3️⃣ Chuẩn bị Repository (5 phút)
+
+### Kiểm tra Dockerfile trong repository
+
+```dockerfile
+FROM eclipse-temurin:17-jre
+COPY build/libs/your-app.jar app.jar
+ENTRYPOINT java -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-production} -jar /app.jar
 ```
 
-Hoặc copy file mẫu:
+### Kiểm tra application properties
+
+**⚠️ QUAN TRỌNG**: Trong `application-test.properties` và `application-prod.properties`:
+
+**KHÔNG ĐƯỢC CÓ:**
+```properties
+spring.profiles.active=test   # ❌ XÓA dòng này!
+```
+
+**CHỈ CẦN:**
+```properties
+spring.application.name=your-app-name
+# ... các config khác
+```
+
+## 4️⃣ Deploy lần đầu (2 phút)
+
+1. Mở Jenkins: http://42.112.38.103:8080
+2. Click vào job **Finy**
+3. Click **Build with Parameters**
+4. Chọn:
+   - Environment: `test`
+   - Git Branch: `test`
+   - Skip Tests: `true`
+5. Click **Build**
+
+**Chờ kết quả** (~2-5 phút tùy kích thước project):
+
+- ✅ Stage 1: Checkout
+- ✅ Stage 2: Build (Gradle)
+- ✅ Stage 3: Build Image (Podman)
+- ✅ Stage 4: Deploy
+- ✅ Stage 5: Archive
+
+## 5️⃣ Kiểm tra kết quả
+
 ```bash
-cp ../finy-ops/build.gradle.example build.gradle
-cp ../finy-ops/settings.gradle.example settings.gradle
+# Xem container đang chạy
+sudo podman ps
+
+# Xem logs ứng dụng
+sudo podman logs -f lendbiz-apigateway-test
+
+# Test API (thay đổi URL phù hợp)
+curl http://42.112.38.103:9201/health
 ```
 
-#### Bước 3: Commit & push
+**Test environment**: http://42.112.38.103:9201  
+**Production**: http://42.112.38.103:9200
+
+## ⚡ Deploy lần sau
+
+Sau khi setup xong, deploy chỉ cần 3 clicks:
+
+1. Mở Jenkins → Job "Finy"
+2. Build with Parameters → chọn environment/branch
+3. Build
+
+**Tất cả sẽ tự động!**
+
+## 🐛 Gặp lỗi?
+
+### Build failed: `podman: not found`
 
 ```bash
-# Cấp quyền thực thi cho gradlew
-chmod +x gradlew
-
-git add Jenkinsfile Dockerfile build.gradle settings.gradle gradlew gradle/
-git commit -m "Add CI/CD configuration with Gradle"
-git push origin main
+sudo podman restart jenkins
+# Chờ 30 giây rồi build lại
 ```
 
-#### Bước 4: Build từ Jenkins
+### Build failed: `spring.profiles.active conflict`
 
-1. Vào Jenkins → chọn job
-2. Click "Build with Parameters"
-3. Nhập:
-   - BRANCH_NAME: `main`
-   - ENVIRONMENT: `dev`
-4. Click "Build"
-5. Xem logs trong Console Output
+Vào repository, xóa dòng `spring.profiles.active=xxx` trong `application-test.properties`
 
-### 7. Test Kafka Integration
-
-#### Tạo Kafka topic
-
-```bash
-podman exec -it kafka kafka-topics.sh --create \
-  --bootstrap-server localhost:9092 \
-  --topic test-topic \
-  --partitions 3 \
-  --replication-factor 1
-```
-
-#### Test Producer
-
-```bash
-echo "Hello Kafka" | podman exec -i kafka kafka-console-producer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic test-topic
-```
-
-#### Test Consumer
-
-```bash
-podman exec -it kafka kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic test-topic \
-  --from-beginning
-```
-
-### 8. Stop Platform
-
-**Windows:**
-```powershell
-.\stop.ps1
-```
-
-**Linux/Mac:**
-```bash
-./stop.sh
-```
-
-## 🎯 Next Steps
-
-1. ✅ Platform đã chạy
-2. 📝 Đọc [README.md](README.md) để hiểu chi tiết
-3. 💻 Xem [examples/](examples/) để tích hợp Kafka vào code
-4. 🔧 Customize Jenkinsfile cho project của bạn
-5. 🚀 Deploy your apps!
-
-## 📌 Common Commands
+### Container không start
 
 ```bash
 # Xem logs
-podman logs -f jenkins
-podman logs -f kafka
+sudo podman logs lendbiz-apigateway-test
 
-# Restart service
-podman restart jenkins
-
-# Check status
-podman ps
-
-# Clean up
-podman-compose down -v  # Xóa cả volumes
+# Restart
+sudo podman restart lendbiz-apigateway-test
 ```
 
-## ❓ Troubleshooting
+## 📚 Chi tiết đầy đủ
 
-**Jenkins không start?**
-```bash
-podman logs jenkins
-# Check port 8080 có bị chiếm không
-```
-
-**Kafka connection refused?**
-```bash
-podman logs kafka
-# Đợi 30s để Kafka hoàn tất khởi động
-```
-
-**Build fails - Gradle not found?**
-```
-Jenkins → Manage Jenkins → Global Tool Configuration → Gradle
-Add: Gradle-8.5 (auto-install)
-```
-
-**Permission denied: ./gradlew?**
-```bash
-chmod +x gradlew
-git add gradlew
-git commit --amend --no-edit
-git push -f
-```
-
-## 📚 Tài liệu đầy đủ
-
-- [README.md](README.md) - Hướng dẫn chi tiết
-- [examples/README.md](examples/README.md) - Kafka integration code
-- [Podman Docs](https://context7.com/containers/podman/llms.txt)
-- [Jenkins Docs](https://context7.com/jenkinsci/jenkins/llms.txt)
-- [Kafka Docs](https://context7.com/apache/kafka/llms.txt)
+Xem [README.md](README.md) để biết thêm chi tiết và troubleshooting.
 
 ---
 
-**Happy Coding! 🎉**
+**Tổng thời gian setup**: ~20 phút lần đầu  
+**Thời gian deploy sau này**: 2-5 phút (tự động)

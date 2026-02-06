@@ -1,402 +1,325 @@
-# Finy-Ops - Jenkins & Kafka Deployment Platform
+# Finy-Ops - Jenkins CI/CD Platform với Podman
 
-Hệ thống CI/CD với Jenkins và Kafka để deploy các dự án Java Spring Boot.
+Hệ thống CI/CD tự động để deploy các dự án Java Spring Boot sử dụng Jenkins, Kafka và Podman.
 
-## 📋 Yêu cầu hệ thống
+## 📋 Mô tả hệ thống
 
-- **Podman** >= 4.0 hoặc **Podman Desktop**
-- **Podman Compose** hoặc **docker-compose** (compatible)
-- **Java** 17+ (cho local development)
-- **Gradle** 8.5+ (cho local build)
-- Hệ điều hành: **RedHat Enterprise Linux 8/9**, Fedora, CentOS Stream, hoặc các distro khác
+- **Jenkins**: Build và deploy tự động từ GitHub
+- **Apache Kafka**: Message broker cho microservices
+- **Podman**: Container runtime (thay thế Docker, tiết kiệm tài nguyên)
+- **Automated Pipeline**: Tự động build JAR → Build Image → Deploy Container
 
-## 🚀 Khởi động
+## 🔧 Yêu cầu hệ thống
 
-### 1. Cài đặt Podman (nếu chưa có)
+- Ubuntu Server (đã cài Podman 4.9+)
+- Port mở: 8080 (Jenkins), 9092 (Kafka), 8090 (Kafka UI), 9200-9201 (Apps)
+- GitHub repository với Dockerfile
+- Internet để pull dependencies
 
-**Red Hat Enterprise Linux 8/9:**
+## 🚀 Cài đặt lần đầu
+
+### Bước 1: Clone repository này
+
 ```bash
-# Enable repository (nếu chưa có)
-sudo subscription-manager repos --enable codeready-builder-for-rhel-9-$(arch)-rpms
+# Trên máy Windows (local)
+git clone https://github.com/<your-org>/finy-ops.git
+cd finy-ops
 
-# Cài đặt Podman và Podman Compose
-sudo dnf install -y podman podman-compose podman-docker
-
-# Enable và start Podman socket
-sudo systemctl enable --now podman.socket
-sudo systemctl enable --now podman
-
-# Cho phép user thường dùng Podman (rootless)
-sudo usermod -aG wheel $USER
+# Copy lên Ubuntu server
+scp -r * minhpt@42.112.38.103:~/projects/finy-ops/
 ```
 
-**Fedora / CentOS Stream:**
-```bash
-# Cài đặt Podman
-sudo dnf install -y podman podman-compose podman-docker
+### Bước 2: Khởi động Infrastructure
 
-# Enable Podman socket
-systemctl --user enable --now podman.socket
+```bash
+# SSH vào Ubuntu server
+ssh minhpt@42.112.38.103
+
+# Chạy script khởi động
+cd ~/projects/finy-ops
+sudo sh ./start.sh
 ```
 
-**Ubuntu/Debian:**
+Script này sẽ:
+- ✅ Tạo Podman network và volumes
+- ✅ Start Jenkins container (với Podman CLI và socket access)
+- ✅ Start Kafka (KRaft mode)
+- ✅ Start Kafka UI
+- ✅ Cấu hình tự động registries và permissions
+
+### Bước 3: Lấy Jenkins password
+
 ```bash
-sudo apt-get update
-sudo apt-get install -y podman podman-compose
+# Password sẽ hiện ra sau khi start, hoặc chạy:
+sudo podman exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-### 2. Khởi động các services
+### Bước 4: Setup Jenkins
+
+1. Mở trình duyệt: `http://42.112.38.103:8080`
+2. Nhập initial admin password
+3. Chọn **Install suggested plugins**
+4. Tạo admin user
+5. Cấu hình Jenkins URL: `http://42.112.38.103:8080`
+
+### Bước 5: Cấu hình Jenkins Tools & Credentials
+
+#### 5.1 Cài đặt Gradle Tool
+
+**Dashboard → Manage Jenkins → Tools → Gradle installations**
+
+- Name: `Gradle 8.0`
+- Install automatically: ✅
+- Version: **Gradle 8.0** (compatible với Spring Boot 2.7.8)
+
+#### 5.2 Thêm GitHub Credentials
+
+**Dashboard → Manage Jenkins → Credentials → System → Global credentials**
+
+- Kind: `Username with password`
+- Username: `<your-github-username>`
+- Password: `<your-github-token>` (Personal Access Token)
+- ID: `github-credentials`
+- Description: `GitHub Access Token`
+
+#### 5.3 Tạo Jenkins Job
+
+**Dashboard → New Item**
+
+- Name: `Finy` (hoặc tên project của bạn)
+- Type: **Pipeline**
+- OK
+
+**Configuration:**
+
+- **General:**
+  - ✅ This project is parameterized
+  - Add parameters:
+    - `ENVIRONMENT`: Choice (test, production) - Default: test
+    - `GIT_BRANCH`: String - Default: test
+    - `SKIP_TESTS`: Boolean - Default: true
+
+- **Pipeline:**
+  - Definition: `Pipeline script from SCM`
+  - SCM: `Git`
+  - Repository URL: `https://github.com/<your-org>/finy-ops.git`
+  - Credentials: `github-credentials`
+  - Branch: `*/main`
+  - Script Path: `Jenkinsfile`
+
+- Save
+
+## 📁 Cấu trúc Repository dự án (Ví dụ)
+
+Repository Java Spring Boot của bạn cần có:
+
+```
+your-spring-boot-project/
+├── src/
+│   └── main/
+│       ├── java/
+│       └── resources/
+│           ├── application.properties
+│           ├── application-test.properties    # ⚠️ KHÔNG có spring.profiles.active
+│           └── application-prod.properties
+├── build.gradle (hoặc pom.xml)
+├── Dockerfile                                # ⚠️ BẮT BUỘC
+└── README.md
+```
+
+### Dockerfile mẫu
+
+```dockerfile
+FROM eclipse-temurin:17-jre
+COPY build/libs/your-app.jar app.jar
+ENTRYPOINT java -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-production} -jar /app.jar
+```
+
+**⚠️ LƯU Ý QUAN TRỌNG:**
+
+1. **ENTRYPOINT dùng shell form** (không có dấu ngoặc vuông) để expand environment variable
+2. **KHÔNG định nghĩa `spring.profiles.active`** trong file `application-test.properties` hoặc `application-prod.properties`
+   - Profile sẽ được inject từ Jenkins qua environment variable
+   - Nếu có dòng này → XÓA ngay để tránh conflict
+
+## 🎯 Sử dụng - Deploy ứng dụng
+
+### Cách 1: Automated Deploy qua Jenkins (Khuyến nghị)
+
+1. Mở Jenkins UI: `http://42.112.38.103:8080`
+2. Click vào job **Finy**
+3. Click **Build with Parameters**
+4. Chọn options:
+   - **Environment**: `test` hoặc `production`
+   - **Git Branch**: `test` hoặc `main`
+   - **Skip Tests**: `true` (khuyến nghị để build nhanh)
+5. Click **Build**
+
+**Pipeline sẽ tự động:**
+- ✅ Checkout code từ GitHub
+- ✅ Build JAR với Gradle 8.0
+- ✅ Build Container Image với Podman
+- ✅ Stop container cũ (nếu có)
+- ✅ Deploy container mới
+- ✅ Archive JAR artifacts
+
+**Kết quả:**
+- Test environment: `http://42.112.38.103:9201`
+- Production: `http://42.112.38.103:9200`
+
+### Cách 2: Manual Deploy (Backup)
 
 ```bash
-# Di chuyển vào thư mục project
+# SSH vào server
+ssh minhpt@42.112.38.103
 cd ~/projects/finy-ops
 
-# Cấp quyền thực thi cho scripts
-chmod +x start.sh stop.sh
-
-# Khởi động tất cả services
-./start.sh
-
-# Hoặc manual:
-podman-compose up -d
-
-# Kiểm tra trạng thái
-podman-compose ps
+# Deploy
+./jenkins-deploy.sh test    # Hoặc: production
 ```
 
-### 3. Truy cập các services
+## 🔍 Monitoring & Troubleshooting
 
-- **Jenkins**: http://localhost:8080
-- **Kafka UI**: http://localhost:8090
-- **Kafka Broker**: localhost:9092
-
-### 4. Lấy mật khẩu Jenkins lần đầu
+### Xem logs
 
 ```bash
-# Lấy initial admin password
-podman exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+# Jenkins logs
+sudo podman logs -f jenkins
+
+# Kafka logs
+sudo podman logs -f kafka
+
+# Application logs (replace với tên container)
+sudo podman logs -f lendbiz-apigateway-test
 ```
 
-## 📦 Cấu hình Jenkins
-
-### Cài đặt Plugins cần thiết
-
-1. Truy cập Jenkins: http://localhost:8080
-2. Đăng nhập với password từ bước 4
-3. Chọn "Install suggested plugins"
-4. Cài thêm các plugins:
-   - Git Plugin
-   - Pipeline Maven Integration
-   - Docker Pipeline (hoặc Podman)
-   - Kafka Plugin (optional)
-   - Blue Ocean (UI đẹp hơn)
-
-### Cấu hình Gradle & JDK trong Jenkins
-
-1. **Manage Jenkins** → **Global Tool Configuration**
-2. **Gradle installations**:
-   - Name: `Gradle-8.5`
-   - Install automatically từ Gradle.org
-   - Version: 8.5 hoặc mới hơn
-3. **JDK installations**:
-   - Name: `JDK-17`
-   - Install automatically từ Adoptium (Eclipse Temurin 17)
-
-### Tạo Pipeline Job theo Branch
-
-#### Cách 1: Multibranch Pipeline (Khuyến nghị)
-
-```groovy
-// Trong Jenkins UI:
-1. New Item → Multibranch Pipeline
-2. Branch Sources → Add Git
-3. Repository URL: https://github.com/your-org/your-repo.git
-4. Credentials: Add your GitHub token
-5. Build Configuration:
-   - Mode: by Jenkinsfile
-   - Script Path: Jenkinsfile
-6. Scan Multibranch Pipeline Triggers:
-   - Periodically if not otherwise run: 5 minutes
-```
-
-#### Cách 2: Pipeline with Parameters
-
-```groovy
-// Trong Jenkins UI:
-1. New Item → Pipeline
-2. Check "This project is parameterized"
-3. Add String Parameter:
-   - Name: BRANCH_NAME
-   - Default Value: main
-4. Add Choice Parameter:
-   - Name: ENVIRONMENT
-   - Choices: dev, staging, production
-5. Pipeline Script from SCM:
-   - SCM: Git
-   - Repository URL: your-repo-url
-   - Branch: ${BRANCH_NAME}
-   - Script Path: Jenkinsfile
-```
-
-## 🔧 Cấu hình Kafka
-
-### Tạo topics
+### Kiểm tra containers
 
 ```bash
-# Exec vào Kafka container
-podman exec -it kafka bash
+# List tất cả containers
+sudo podman ps -a
 
-# Tạo topic
-kafka-topics.sh --create \
-  --bootstrap-server localhost:9092 \
-  --topic jenkins-builds \
-  --partitions 3 \
-  --replication-factor 1
-
-# List topics
-kafka-topics.sh --list --bootstrap-server localhost:9092
-
-# Describe topic
-kafka-topics.sh --describe \
-  --bootstrap-server localhost:9092 \
-  --topic jenkins-builds
+# Inspect một container
+sudo podman inspect jenkins
 ```
 
-### Test Kafka từ Spring Boot
+### Kiểm tra Podman socket
 
-Thêm vào `application.yml`:
+```bash
+# Verify socket exists và có permission
+sudo ls -la /run/podman/podman.sock
 
-```yaml
-spring:
-  kafka:
-    bootstrap-servers: kafkbuild.gradle`:
-
-```gradle
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.kafka:spring-kafka'
-    
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.kafka:spring-kafka-test'
-}
+# Test từ Jenkins container
+sudo podman exec jenkins sh -c 'export CONTAINER_HOST=unix:///run/podman/podman.sock && podman ps'
 ```
 
-Hoặc copy file mẫu:
-```bash
-cp build.gradle.example your-project/build.gradle
-cp settings.gradle.example your-project/settings.gradle
-
-## 📝 Deploy Spring Boot Application
-các file cần thiết vào root project
+### Vào Kafka UI
 
 ```bash
-# Copy Jenkinsfile, Dockerfile và Gradle wrapper từ finy-ops vào project của bạn
-cp Jenkinsfile /path/to/your-spring-boot-project/
-cp Dockerfile /path/to/your-spring-boot-project/
-cp gradlew /path/to/your-spring-boot-project/
-cp build.gradle.example /path/to/your-spring-boot-project/build.gradle
-cp settings.gradle.example /path/to/your-spring-boot-project/settings.gradle
-
-# Cấp quyền thực thi cho gradlew
-chmod +x /path/to/your-spring-boot-project/gradlew
-<dependency>
-    <groupId>org.springframework.kafka</groupId>
-    <artifactId>spring-kafka</artifactId>
-</dependency>
-
-<dependency>
-    <groupId>org.springframewo build.gradle settings.gradle gradlew
-git commit -m "Add CI/CD configuration with Gradletuator</artifactId>
-</dependency>
+# Mở browser
+http://42.112.38.103:8090
 ```
 
-### 2. Copy Jenkinsfile vào root project
+### Restart services
 
 ```bash
-# Copy Jenkinsfile và Dockerfile từ finy-ops vào project của bạn
-cp Jenkinsfile /path/to/your-spring-boot-project/
-cp Dockerfile /path/to/your-spring-boot-project/
+# Restart Jenkins
+sudo podman restart jenkins
+
+# Restart Kafka
+sudo podman restart kafka
+
+# Restart application
+sudo podman restart lendbiz-apigateway-test
 ```
 
-### 3. Commit và push code
+## 🛑 Dừng hệ thống
 
 ```bash
-cd /path/to/your-spring-boot-project
-git add Jenkinsfile Dockerfile
-git commit -m "Add CI/CD configuration"
-git push origin main  # hoặc branch khác
+# Dừng tất cả services
+sudo sh ./stop.sh
+
+# Hoặc dừng từng service
+sudo podman stop jenkins kafka kafka-ui
 ```
 
-### 4. Trigger build từ Jenkins
+## 📚 Services URLs
 
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Jenkins** | http://42.112.38.103:8080 | admin / (xem initial password) |
+| **Kafka UI** | http://42.112.38.103:8090 | No auth |
+| **Kafka Bootstrap** | 42.112.38.103:9092 | No auth |
+| **App Test** | http://42.112.38.103:9201 | Depends on app |
+| **App Production** | http://42.112.38.103:9200 | Depends on app |
+
+## 🔐 Security Notes
+
+- Jenkins admin password: Thay đổi sau lần đăng nhập đầu
+- Kafka: Chưa có authentication (cân nhắc enable SASL cho production)
+- Podman socket: Chỉ accessible từ Jenkins container với root group
+- GitHub credentials: Sử dụng Personal Access Token, không dùng password
+
+## ⚙️ Technical Details
+
+- **Jenkins**: 2.541.1 LTS (JDK 17)
+- **Kafka**: Apache Kafka 3.8.1 (KRaft mode, không cần Zookeeper)
+- **Podman**: 4.9.3 rootful mode
+- **Gradle**: 8.0 (compatible với Spring Boot 2.7.8)
+- **Java Runtime**: Eclipse Temurin 17 JRE
+- **Network**: Podman default bridge network
+
+## 🐛 Common Issues
+
+### Issue 1: `podman: not found` trong Jenkins build
+
+**Nguyên nhân**: Podman CLI chưa được cài trong Jenkins container
+
+**Giải pháp:**
 ```bash
-# Hoặc dùng Jenkins UI:
-# 1. Chọn job
-# 2. "Build with Parameters"
-# 3. Nhập branch name: main/develop/feature-xxx
-# 4. Chọn environment
-# 5. Click "Build"
-
-# Hoặc dùng API:
-curl -X POST http://localhost:8080/job/your-job/buildWithParameters \
-  --user admin:your-api-token \
-  --data-urlencode "BRANCH_NAME=main" \
-  --data-urlencode "ENVIRONMENT=dev"
+# Recreate Jenkins container
+sudo podman rm -f jenkins
+sudo sh ./start.sh
 ```
 
-## 🛠 Các lệnh hữu ích
+### Issue 2: `permission denied` khi access socket
 
-### Podman Management
+**Nguyên nhân**: User jenkins không có quyền truy cập `/run/podman/podman.sock`
 
+**Giải pháp:**
 ```bash
-# Xem logs
-podman-compose logs -f jenkins
-podman-compose logs -f kafka
-
-# Restart service
-podman-compose restart jenkins
-
-# Stop tất cả
-podman-compose down
-
-# Stop và xóa volumes
-podman-compose down -v
-
-# Xem resource usage
-podman stats
-
-# Cleanup images cũ
-podman image prune -a
+sudo podman exec -u root jenkins usermod -aG root jenkins
+sudo podman restart jenkins
 ```
 
-### Jenkins Management
+### Issue 3: `spring.profiles.active` conflict
 
+**Nguyên nhân**: Có định nghĩa `spring.profiles.active` trong file `application-test.properties`
+
+**Giải pháp**: Xóa dòng này khỏi file properties trong repository
+
+### Issue 4: `short-name "openjdk:17-oracle" did not resolve`
+
+**Nguyên nhân**: Registry không được cấu hình hoặc image không tồn tại
+
+**Giải pháp:**
 ```bash
-# Backup Jenkins
-podman exec jenkins tar czf /tmp/jenkins-backup.tar.gz /var/jenkins_home
-podman cp jenkins:/tmp/jenkins-backup.tar.gz ./
+# Cấu hình registry (đã được tự động setup)
+sudo cat /etc/containers/registries.conf
 
-# Restore Jenkins
-podman cp jenkins-backup.tar.gz jenkins:/tmp/
-podman exec jenkins tar xzf /tmp/jenkins-backup.tar.gz -C /
+# Dùng image khác trong Dockerfile (khuyến nghị)
+FROM eclipse-temurin:17-jre
 ```
 
-### Kafka Management
+## 📞 Support
 
-```bash
-# Consumer test
-podman exec -it kafka kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic jenkins-builds \
-  --from-beginning
-
-# Producer test
-echo "test message" | podman exec -i kafka kafka-console-producer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic jenkins-builds
-
-# Monitor consumer groups
-podman exec kafka kafka-consumer-groups.sh \
-  --bootstrap-server localhost:9092 \
-  --list
-```
-
-## 🔐 Security Best Practices
-
-1. **Thay đổi default credentials** sau khi setup
-2. **Bật HTTPS** cho Jenkins production
-3. **Sử dụng Jenkins Credentials Store** cho sensitive data
-4. **Cấu hình Kafka authentication** cho production (SASL/SSL)
-5. **Sử dụng secrets management** (HashiCorp Vault, AWS Secrets Manager)
-
-## 📊 Monitoring
-
-### Jenkins Metrics
-
-- Truy cập: http://localhost:8080/monitoring
-- Hoặc cài plugin: Prometheus Metrics Plugin
-
-### Kafka Monitoring
-
-- Kafka UI: http://localhost:8090
-- JMX Metrics: Port 9999 (nếu enable)
-
-## 🐛 Troubleshooting
-
-### Jenkins không khởi động
-
-```bash
-# Check logs
-podman logs jenkins
-
-# Check permissions
-podman exec jenkins ls -la /var/jenkins_home
-
-# Restart with clean state
-podman-compose down
-podman volume rm fGradle not found
-
-```bash
-# Ensure Gradle tool is configured in Jenkins
-# Manage Jenkins → Global Tool Configuration → Gradle
-# Name: Gradle-8.5
-# Install automatically: Yes
-```
-
-### Permission denied: gradlew
-
-```bash
-# Đảm bảo gradlew có quyền thực thi
-chmod +x gradlew
-git add gradlew
-git commit -m "Fix gradlew permissions"
-git push
-
-```bash
-# Check Kafka is running
-podman ps | grep kafka
-
-# Check Kafka logs
-podman logs kafka
-
-# Verify network (sử dụng default podman network)
-podman network ls
-podman network inspect podman
-
-# Check container network
-podman inspect kafka --format '{{.NetworkSettings.Networks}}'
-```
-
-### Build fails - Maven not found
-
-```bash
-# Ensure Maven tool is configured in Jenkins
-# Manage Jenkins → Global Tool Configuration → Maven
-```
-
-## 📚 Tài liệu tham khảo
-
-### Hướng dẫn cài đặt
-- [QUICKSTART.md](QUICKSTART.md) - Bắt đầu nhanh trong 5 phút
-- [REDHAT-SETUP.md](REDHAT-SETUP.md) - Hướng dẫn chi tiết cho RHEL 8/9
-- [NETWORK-CONFIG.md](NETWORK-CONFIG.md) - Cấu hình network Podman
-
-### Tài liệu kỹ thuật
-- Podman: https://context7.com/containers/podman/llms.txt
-- Jenkins: https://context7.com/jenkinsci/jenkins/llms.txt
-- Kafka: https://context7.com/apache/kafka/llms.txt
-- Spring Boot 2.7.8: https://docs.spring.io/spring-boot/docs/2.7.8/reference/html/
-
-### Code Examples
-- [examples/README.md](examples/README.md) - Kafka integration với Spring Boot
-- [examples/KafkaProducerService.java](examples/KafkaProducerService.java) - Producer example
-- [examples/KafkaConsumerService.java](examples/KafkaConsumerService.java) - Consumer example
-
-## 🤝 Contributing
-
-Mọi đóng góp đều được chào đón! Hãy tạo issue hoặc pull request.
+Nếu gặp vấn đề, check logs và verify:
+1. ✅ Podman daemon đang chạy: `sudo podman info`
+2. ✅ Socket có quyền đúng: `sudo ls -la /run/podman/podman.sock`
+3. ✅ Jenkins có Podman CLI: `sudo podman exec jenkins podman --version`
+4. ✅ Registry đã cấu hình: `sudo cat /etc/containers/registries.conf`
+5. ✅ Dockerfile đúng format và image tồn tại
 
 ## 📄 License
 
-MIT License
+Internal company use only.
