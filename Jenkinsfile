@@ -125,53 +125,24 @@ pipeline {
                     echo "Port: ${APP_PORT}:9200"
                     echo "=========================================="
                     
-                    if (params.ENVIRONMENT == 'production') {
-                        // PRODUCTION: Inject credentials từ Jenkins Credentials
-                        echo "🔐 Loading production credentials from Jenkins..."
-                        
-                        withCredentials([
-                            usernamePassword(
-                                credentialsId: 'db-production-credentials',
-                                usernameVariable: 'DB_USER',
-                                passwordVariable: 'DB_PASS'
-                            ),
-                            string(
-                                credentialsId: 'db-production-url',
-                                variable: 'DB_URL'
-                            )
-                        ]) {
-                            sh """
-                                export CONTAINER_HOST=unix:///run/podman/podman.sock
-                                
-                                # Stop old container
-                                podman stop ${containerName} 2>/dev/null || true
-                                podman rm ${containerName} 2>/dev/null || true
-                                
-                                # Run new container with production credentials
-                                podman run -d --name ${containerName} \\
-                                    --network podman \\
-                                    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
-                                    -e SPRING_DATASOURCE_URL=\${DB_URL} \\
-                                    -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \\
-                                    -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \\
-                                    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \\
-                                    -p ${APP_PORT}:9200 \\
-                                    --restart unless-stopped \\
-                                    ${imageTag}
-                                
-                                # Wait and show logs
-                                echo 'Waiting for application to start...'
-                                sleep 10
-                                podman logs --tail 30 ${containerName}
-                            """
-                        }
-                        
-                        echo "✅ Production deployed with injected credentials"
-                        
-                    } else {
-                        // TEST: Dùng credentials từ application-test.properties
-                        echo "📋 Using credentials from application-test.properties"
-                        
+                    // Inject credentials từ Jenkins Credentials cho CẢ test và production
+                    echo "🔐 Loading credentials from Jenkins Credentials..."
+                    
+                    // Xác định credential IDs dựa vào environment
+                    def dbCredsId = params.ENVIRONMENT == 'production' ? 'db-production-credentials' : 'db-test-credentials'
+                    def dbUrlId = params.ENVIRONMENT == 'production' ? 'db-production-url' : 'db-test-url'
+                    
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: dbCredsId,
+                            usernameVariable: 'DB_USER',
+                            passwordVariable: 'DB_PASS'
+                        ),
+                        string(
+                            credentialsId: dbUrlId,
+                            variable: 'DB_URL'
+                        )
+                    ]) {
                         sh """
                             export CONTAINER_HOST=unix:///run/podman/podman.sock
                             
@@ -179,10 +150,13 @@ pipeline {
                             podman stop ${containerName} 2>/dev/null || true
                             podman rm ${containerName} 2>/dev/null || true
                             
-                            # Run new container
+                            # Run new container with injected credentials
                             podman run -d --name ${containerName} \\
                                 --network podman \\
                                 -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+                                -e SPRING_DATASOURCE_URL=\${DB_URL} \\
+                                -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \\
+                                -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \\
                                 -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \\
                                 -p ${APP_PORT}:9200 \\
                                 --restart unless-stopped \\
@@ -194,6 +168,8 @@ pipeline {
                             podman logs --tail 30 ${containerName}
                         """
                     }
+                    
+                    echo "✅ ${params.ENVIRONMENT.toUpperCase()} deployed with injected credentials"
                     
                     echo "=========================================="
                     echo "✅ Deployment completed!"
