@@ -95,6 +95,39 @@ Password: test_password_123
 ID: db-test-credentials
 Description: Test Database Credentials
 ```
+**Click:** Create
+
+### 2.4. Tạo github account Test Credentials
+
+**Click:** Add Credentials (lại)
+
+**Fill form:**
+```
+Kind: Username with password
+Scope: Global
+Username: test_user
+Password: test_password_123
+ID: git-credentials
+Description: Github Account Credentials
+```
+
+**Click:** Create
+
+---
+
+### 2.5. Tạo Github finy api URL
+
+
+**Click:** Add Credentials  (lại)
+
+**Fill form:**
+```
+Kind: Secret text
+Scope: Global (Jenkins, nodes, items, all child items, etc)
+Secret: https://github.com/your-original/repository.git
+ID: git-finy-api-test-url
+Description: GITHUB FINY API URL
+```
 
 **Click:** Create
 
@@ -112,6 +145,8 @@ Bạn sẽ thấy:
 | `db-test-credentials` | Username with password | Test Database Credentials |
 | `db-production-url` | Secret text | Production Database JDBC URL *(chưa setup)* |
 | `db-production-credentials` | Username with password | Production Database Credentials *(chưa setup)* |
+| `git-finy-api-test-url` | Secret text | GITHUB URL |
+| `git-credentials` | Username with password | GITHUB ACCOUNT USERNAME/TOKEN |
 
 ---
 

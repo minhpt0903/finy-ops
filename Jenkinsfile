@@ -32,26 +32,29 @@ pipeline {
         
         // Xác định profile và port từ parameter
         SPRING_PROFILE = "${params.ENVIRONMENT == 'production' ? 'prod' : 'test'}"
-        APP_PORT = "${params.ENVIRONMENT == 'production' ? '9200' : '9201'}"
+        APP_PORT = "${params.ENVIRONMENT == 'production' ? '9100' : '9100'}"
     }
     
     stages {
         stage('Checkout') {
             steps {
-                script {
-                    echo "=========================================="
-                    echo "Build Configuration:"
-                    echo "  Environment: ${params.ENVIRONMENT}"
-                    echo "  Git Branch: ${params.GIT_BRANCH}"
-                    echo "  Spring Profile: ${SPRING_PROFILE}"
-                    echo "  Application Port: ${APP_PORT}"
-                    echo "  Skip Tests: ${params.SKIP_TESTS}"
-                    echo "=========================================="
+                withCredentials([string(credentialsId: 'git-finy-api-test-url', variable: 'GIT_FINY_API_SERVICE_URL')]) {
+                    script {
+                        echo "=========================================="
+                        echo "Build Configuration:"
+                        echo "  Environment: ${params.ENVIRONMENT}"
+                        echo "  Git Branch: ${params.GIT_BRANCH}"
+                        echo "  Git URL: ${GIT_FINY_API_SERVICE_URL}"
+                        echo "  Spring Profile: ${SPRING_PROFILE}"
+                        echo "  Application Port: ${APP_PORT}"
+                        echo "  Skip Tests: ${params.SKIP_TESTS}"
+                        echo "=========================================="
+                    }
+                    
+                    git branch: "${params.GIT_BRANCH}",
+                        url: "${GIT_FINY_API_SERVICE_URL}",
+                        credentialsId: 'git-credentials'
                 }
-                
-                git branch: "${params.GIT_BRANCH}",
-                    url: 'https://github.com/lendbiz/apigatewayfiny.git',
-                    credentialsId: '9732e4f1-97d7-4a9e-9190-2350776a9450'
             }
         }
         
@@ -80,33 +83,6 @@ pipeline {
             steps {
                 sh 'gradle test'
             }
-            post {
-                always {
-                    junit '**/build/test-results/test/*.xml'
-                }
-            }
-        }
-        
-        stage('Build Image') {
-            steps {
-                script {
-                    def imageTag = "${APP_NAME}:${params.ENVIRONMENT}-${BUILD_NUMBER}"
-                    def latestTag = "${APP_NAME}:${params.ENVIRONMENT}-latest"
-                    
-                    echo "=========================================="
-                    echo "Building container image with Podman..."
-                    echo "Image: ${imageTag}"
-                    echo "Latest: ${latestTag}"
-                    echo "=========================================="
-                    
-                    sh """
-                        export CONTAINER_HOST=unix:///run/podman/podman.sock
-                        podman build -t ${imageTag} -t ${latestTag} .
-                    """
-                    
-                    echo "✅ Image built successfully"
-                }
-            }
         }
         
         stage('Deploy') {
@@ -119,7 +95,7 @@ pipeline {
                     echo "Deploying to ${params.ENVIRONMENT} environment"
                     echo "Spring Profile: ${SPRING_PROFILE}"
                     echo "Container: ${containerName}"
-                    echo "Port: ${APP_PORT}:9200"
+                    echo "Port: ${APP_PORT}:9100"
                     echo "=========================================="
                     
                     // Inject credentials từ Jenkins Credentials cho CẢ test và production
@@ -160,7 +136,7 @@ pipeline {
                                 -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \\
                                 -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \\
                                 -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
-                                -p ${APP_PORT}:9200 \\
+                                -p ${APP_PORT}:9100 \\
                                 --restart unless-stopped \\
                                 ${imageTag}
                             
