@@ -33,9 +33,6 @@ pipeline {
         // Xác định profile và port từ parameter
         SPRING_PROFILE = "${params.ENVIRONMENT == 'production' ? 'prod' : 'test'}"
         APP_PORT = "${params.ENVIRONMENT == 'production' ? '9200' : '9201'}"
-        
-        // Kafka server
-        KAFKA_SERVERS = '42.112.38.103:9092'
     }
     
     stages {
@@ -157,7 +154,6 @@ pipeline {
                                 -e SPRING_DATASOURCE_URL=\${DB_URL} \\
                                 -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \\
                                 -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \\
-                                -e SPRING_KAFKA_BOOTSTRAP_SERVERS=${KAFKA_SERVERS} \\
                                 -p ${APP_PORT}:9200 \\
                                 --restart unless-stopped \\
                                 ${imageTag}
