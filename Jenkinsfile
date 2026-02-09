@@ -107,6 +107,8 @@ pipeline {
                             -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \
                             -e LOG_PATH=\${LOG_PATH} \
                             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+                            -e LOGGING_CONFIG=classpath:logback-spring.xml \
+                            -v /home/finy-service/logs:/logs:Z \
                             -p ${APP_PORT}:9100 \
                             --restart unless-stopped \
                             ${APP_NAME}:test-${BUILD_NUMBER}
