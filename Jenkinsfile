@@ -89,7 +89,8 @@ pipeline {
                     string(
                         credentialsId: 'db-test-url',
                         variable: 'DB_URL'
-                    )
+                    ),
+                    string(credentialsId: 'finy-log-path-test', variable: 'LOG_PATH')
                 ]) {
                     sh """
                         export CONTAINER_HOST=unix:///run/podman/podman.sock
@@ -104,6 +105,7 @@ pipeline {
                             -e SPRING_DATASOURCE_URL=\${DB_URL} \
                             -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \
                             -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \
+                            -e LOG_PATH=\${LOG_PATH} \
                             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
                             -p ${APP_PORT}:9100 \
                             --restart unless-stopped \
