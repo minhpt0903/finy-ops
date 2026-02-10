@@ -132,6 +132,40 @@ Description: GITHUB FINY API URL
 **Click:** Create
 
 ---
+### 2.6. Tạo path logs
+
+
+**Click:** Add Credentials  (lại)
+
+**Fill form:**
+```
+Kind: Secret text
+Scope: Global (Jenkins, nodes, items, all child items, etc)
+Secret: /home/finy-service/logs
+ID: finy-log-path-test
+Description: Logs folder in server
+```
+
+**Click:** Create
+
+---
+### 2.7. Tạo đường dẫn thư mục hồ sơ
+
+
+**Click:** Add Credentials  (lại)
+
+**Fill form:**
+```
+Kind: Secret text
+Scope: Global (Jenkins, nodes, items, all child items, etc)
+Secret: /home/finy-service/documents
+ID: finy-contract-path-test
+Description: Contracts folder in server
+```
+
+**Click:** Create
+
+---
 
 ## ✅ Bước 3: Verify Credentials
 

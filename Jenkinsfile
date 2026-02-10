@@ -90,32 +90,36 @@ pipeline {
                         credentialsId: 'db-test-url',
                         variable: 'DB_URL'
                     ),
-                    string(credentialsId: 'finy-log-path-test', variable: 'LOG_PATH')
+                    string(credentialsId: 'finy-log-path-test', variable: 'LOG_PATH'),
+                    string(credentialsId: 'finy-contract-path-test', variable: 'CONTRACT_PATH'),
+
                 ]) {
-                    sh """
+                    sh '''
                         export CONTAINER_HOST=unix:///run/podman/podman.sock
-                        KAFKA_IP=\$(podman inspect kafka --format '{{.NetworkSettings.Networks.podman.IPAddress}}' 2>/dev/null || echo "10.88.0.1")
-                        echo "🔍 Detected Kafka IP: \${KAFKA_IP}"
-                        podman stop ${APP_NAME}-test 2>/dev/null || true
-                        podman rm ${APP_NAME}-test 2>/dev/null || true
-                        podman run -d --name ${APP_NAME}-test \
+                        KAFKA_IP=$(podman inspect kafka --format '{{.NetworkSettings.Networks.podman.IPAddress}}' 2>/dev/null || echo "10.88.0.1")
+                        echo "🔍 Detected Kafka IP: $KAFKA_IP"
+                        podman stop $APP_NAME-test 2>/dev/null || true
+                        podman rm $APP_NAME-test 2>/dev/null || true
+                        podman run -d --name $APP_NAME-test \
                             --network podman \
-                            --add-host kafka:\${KAFKA_IP} \
-                            -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
-                            -e SPRING_DATASOURCE_URL=\${DB_URL} \
-                            -e SPRING_DATASOURCE_USERNAME=\${DB_USER} \
-                            -e SPRING_DATASOURCE_PASSWORD=\${DB_PASS} \
-                            -e LOG_PATH=\${LOG_PATH} \
+                            --add-host kafka:$KAFKA_IP \
+                            -e SPRING_PROFILES_ACTIVE=$SPRING_PROFILE \
+                            -e SPRING_DATASOURCE_URL=$DB_URL \
+                            -e SPRING_DATASOURCE_USERNAME=$DB_USER \
+                            -e SPRING_DATASOURCE_PASSWORD=$DB_PASS \
                             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
                             -e LOGGING_CONFIG=classpath:logback-spring.xml \
-                            -v /home/finy-service/logs:/logs:Z \
-                            -p ${APP_PORT}:9100 \
+                            -e LOG_PATH=$LOG_PATH \
+                            -v $LOG_PATH:/logs:Z \
+                            -e CONTRACT_PATH=$CONTRACT_PATH \
+                            -v $CONTRACT_PATH:/hoso:Z \
+                            -p $APP_PORT:9100 \
                             --restart unless-stopped \
-                            ${APP_NAME}:test-${BUILD_NUMBER}
+                            $APP_NAME:test-$BUILD_NUMBER
                         echo 'Waiting for application to start...'
                         sleep 10
-                        podman logs --tail 30 ${APP_NAME}-test
-                    """
+                        podman logs --tail 30 $APP_NAME-test
+                    '''
                 }
                 script {
                     echo "✅ TEST deployed with injected credentials"
