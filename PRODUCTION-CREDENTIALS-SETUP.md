@@ -310,3 +310,43 @@ telnet prod-db-host 1521
 - [JENKINS-ENV-VARS-GUIDE.md](JENKINS-ENV-VARS-GUIDE.md) - Chi tiết về env vars
 - [Spring Boot External Config](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config)
 - [Jenkins Credentials Plugin](https://plugins.jenkins.io/credentials/)
+
+# Jenkins Production Credentials Setup for finy-service
+
+Bạn cần khai báo các credentials sau trong Jenkins để pipeline production hoạt động:
+
+1. Git repository URL:
+   - ID: git-finy-service-url
+   - Type: String
+   - Giá trị: URL repo production của finy-service
+
+2. Git credentials:
+   - ID: git-credentials
+   - Type: Username with password
+   - Dùng để truy cập repo production
+
+3. Database credentials:
+   - ID: db-finy-service-prod-credentials
+   - Type: Username with password
+   - Username variable: DB_USER
+   - Password variable: DB_PASS
+
+4. Database URL:
+   - ID: db-finy-service-prod-url
+   - Type: String
+   - Variable: DB_URL
+
+5. Log path:
+   - ID: finy-log-path-prod
+   - Type: String
+   - Variable: LOG_PATH
+   - Giá trị: Đường dẫn thư mục logs trên host production
+
+6. Contract path:
+   - ID: finy-document-path-prod
+   - Type: String
+   - Variable: CONTRACT_PATH
+   - Giá trị: Đường dẫn thư mục contract trên host production
+
+> Đảm bảo các credentials trên được tạo đúng ID và type trong Jenkins Credentials Manager.
+> Các giá trị path phải tồn tại trên host production.

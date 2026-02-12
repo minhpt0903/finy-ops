@@ -1,0 +1,163 @@
+pipeline {
+    agent any
+
+    tools {
+        gradle 'Gradle-8.0'
+        jdk 'JDK-17'
+    }
+
+    environment {
+        APP_NAME = 'finy-service'
+        SPRING_PROFILE = 'prod'
+        APP_PORT = '9000'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                withCredentials([string(credentialsId: 'git-finy-service-url', variable: 'GIT_URL')]) {
+                    script {
+                        echo "=========================================="
+                        echo "Build Configuration:"
+                        echo "  Environment: prod"
+                        echo "  Git Branch: main"
+                        echo "  Spring Profile: ${SPRING_PROFILE}"
+                        echo "  Application Port: ${APP_PORT}"
+                        echo "=========================================="
+                    }
+                    git branch: 'main',
+                        url: "${GIT_URL}",
+                        credentialsId: 'git-credentials'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    echo "Building Spring Boot application for production environment"
+                    echo "Using Spring Profile: ${SPRING_PROFILE}"
+                }
+                sh 'gradle --version'
+                sh '''
+                    gradle clean build \
+                        -Pspring.profiles.active=${SPRING_PROFILE} \
+                        -x test \
+                        --no-daemon
+                '''
+            }
+        }
+
+        stage('Build Image') {
+            steps {
+                script {
+                    def imageTag = "${APP_NAME}:prod-${BUILD_NUMBER}"
+                    def latestTag = "${APP_NAME}:prod-latest"
+                    echo "=========================================="
+                    echo "Building container image with Podman..."
+                    echo "Image: ${imageTag}"
+                    echo "Latest: ${latestTag}"
+                    echo "=========================================="
+                    sh """
+                        export CONTAINER_HOST=unix:///run/podman/podman.sock
+                        podman build -t ${imageTag} -t ${latestTag} .
+                    """
+                    echo "✅ Image built successfully"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    def imageTag = "${APP_NAME}:prod-${BUILD_NUMBER}"
+                    def containerName = "${APP_NAME}-prod"
+                    echo "=========================================="
+                    echo "Deploying to production environment"
+                    echo "Spring Profile: ${SPRING_PROFILE}"
+                    echo "Container: ${containerName}"
+                    echo "Port: ${APP_PORT}:9000"
+                    echo "=========================================="
+                }
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'db-finy-service-prod-credentials',
+                        usernameVariable: 'DB_USER',
+                        passwordVariable: 'DB_PASS'
+                    ),
+                    string(
+                        credentialsId: 'db-finy-service-prod-url',
+                        variable: 'DB_URL'
+                    ),
+                    string(credentialsId: 'finy-log-path-prod', variable: 'LOG_PATH'),
+                    string(credentialsId: 'finy-document-path-prod', variable: 'CONTRACT_PATH'),
+                ]) {
+                    sh '''
+                        export CONTAINER_HOST=unix:///run/podman/podman.sock
+                        KAFKA_IP=$(podman inspect kafka --format '{{.NetworkSettings.Networks.podman.IPAddress}}' 2>/dev/null || echo "10.88.0.1")
+                        echo "🔍 Detected Kafka IP: $KAFKA_IP"
+                        podman stop $APP_NAME-prod 2>/dev/null || true
+                        podman rm $APP_NAME-prod 2>/dev/null || true
+                        podman run -d --name $APP_NAME-prod \
+                            --network podman \
+                            --add-host kafka:$KAFKA_IP \
+                            -e SPRING_PROFILES_ACTIVE=$SPRING_PROFILE \
+                            -e SPRING_DATASOURCE_URL=$DB_URL \
+                            -e SPRING_DATASOURCE_USERNAME=$DB_USER \
+                            -e SPRING_DATASOURCE_PASSWORD=$DB_PASS \
+                            -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+                            -e LOGGING_CONFIG=classpath:logback-spring.xml \
+                            -e LOG_PATH=$LOG_PATH \
+                            -v $LOG_PATH:/logs:Z \
+                            -e CONTRACT_PATH=$CONTRACT_PATH \
+                            -v $CONTRACT_PATH:/hoso:Z \
+                            -p $APP_PORT:9000 \
+                            --restart unless-stopped \
+                            $APP_NAME:prod-$BUILD_NUMBER
+                        echo 'Waiting for application to start...'
+                        sleep 10
+                        podman logs --tail 30 $APP_NAME-prod
+                    '''
+                }
+                script {
+                    echo "✅ PRODUCTION deployed with injected credentials"
+                    echo "=========================================="
+                    echo "✅ Deployment completed!"
+                    echo "Application URL: http://localhost:${APP_PORT}"
+                    echo "Container: ${APP_NAME}-prod"
+                    echo "Image: ${APP_NAME}:prod-${BUILD_NUMBER}"
+                    echo ""
+                    echo "  View logs: podman logs -f ${APP_NAME}-prod"
+                    echo "  Stop:      podman stop ${APP_NAME}-prod"
+                    echo "  Restart:   podman restart ${APP_NAME}-prod"
+                    echo "=========================================="
+                }
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                archiveArtifacts artifacts: 'build/libs/*.jar', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "========================================="
+            echo "✓ Build SUCCESS"
+            echo "Build: #${BUILD_NUMBER}"
+            echo "========================================="
+        }
+        failure {
+            echo "========================================="
+            echo "✗ Build FAILED"  
+            echo "Build: #${BUILD_NUMBER}"
+            echo "========================================="
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
