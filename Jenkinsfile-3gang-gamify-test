@@ -106,6 +106,7 @@ pipeline {
                             -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
                             -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
                             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+                            -e TZ=Asia/Ho_Chi_Minh \
                             -e GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/service-account-file.json \
                             -p ${APP_PORT}:9005 \
                             -v /home/credentials/service-account-file.json:/run/secrets/service-account-file.json:ro \
