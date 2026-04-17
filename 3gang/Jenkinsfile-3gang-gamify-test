@@ -108,8 +108,13 @@ pipeline {
                             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
                             -e TZ=Asia/Ho_Chi_Minh \
                             -e GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/service-account-file.json \
+                            -e LOKI_URL=http://logs_loki:3100/loki/api/v1/push \
+                            -e APP_NAME=${APP_NAME} \
+                            -e VPS_NAME=test-server \
+                            -e LOG_PATH=/logs \
                             -p ${APP_PORT}:9005 \
                             -v /home/credentials/service-account-file.json:/run/secrets/service-account-file.json:ro \
+                            -v /home/3gang-services/logs:/logs:Z \
                             --restart unless-stopped \
                             ${APP_NAME}:test-${BUILD_NUMBER}
                         echo 'Waiting for application to start...'
