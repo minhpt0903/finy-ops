@@ -107,9 +107,9 @@ pipeline {
                             -e LOKI_URL=http://loki:3100/loki/api/v1/push \
                             -e APP_NAME=${APP_NAME} \
                             -e VPS_NAME=test-server \
-                            -e LOG_PATH=/home/default/logs \
+                            -e LOG_PATH=/logs \
                             -p ${APP_PORT}:9019 \
-                            -v /home/3gang-services/vpbank/logs:/home/default/logs:Z \
+                            -v /home/3gang-services/vpbank/logs:/logs:Z \
                             --restart unless-stopped \
                             ${APP_NAME}:test-${BUILD_NUMBER}
                         echo 'Waiting for application to start...'
