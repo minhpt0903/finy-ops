@@ -115,78 +115,35 @@
           },
           "overrides": [
             {
-              "matcher": {
-                "id": "byName",
-                "options": "ERROR"
-              },
+              "matcher": { "id": "byName", "options": "ERROR" },
               "properties": [
-                {
-                  "id": "color",
-                  "value": {
-                    "fixedColor": "red",
-                    "mode": "fixed"
-                  }
-                }
+                { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
               ]
             },
             {
-              "matcher": {
-                "id": "byName",
-                "options": "WARN"
-              },
+              "matcher": { "id": "byName", "options": "WARN" },
               "properties": [
-                {
-                  "id": "color",
-                  "value": {
-                    "fixedColor": "orange",
-                    "mode": "fixed"
-                  }
-                }
+                { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }
               ]
             },
             {
-              "matcher": {
-                "id": "byName",
-                "options": "INFO"
-              },
+              "matcher": { "id": "byName", "options": "INFO" },
               "properties": [
-                {
-                  "id": "color",
-                  "value": {
-                    "fixedColor": "green",
-                    "mode": "fixed"
-                  }
-                }
+                { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }
               ]
             }
           ]
         },
-        "gridPos": {
-          "h": 8,
-          "w": 24,
-          "x": 0,
-          "y": 0
-        },
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
         "id": 1,
         "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "none"
-          }
+          "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "none" }
         },
         "pluginVersion": "10.0.0",
         "targets": [
           {
-            "datasource": {
-              "type": "loki",
-              "uid": "${DS_LOKI}"
-            },
+            "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
             "editorMode": "code",
             "expr": "sum by (level) (count_over_time({app=~\"$app\"} [$__interval]))",
             "legendFormat": "{{level}}",
@@ -198,55 +155,30 @@
         "type": "timeseries"
       },
       {
-        "datasource": {
-          "type": "loki",
-          "uid": "${DS_LOKI}"
-        },
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
         "fieldConfig": {
           "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
+            "color": { "mode": "thresholds" },
             "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                }
-              ]
-            },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
             "unit": "short"
           },
           "overrides": []
         },
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 0,
-          "y": 8
-        },
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
         "id": 2,
         "options": {
           "colorMode": "value",
           "graphMode": "area",
           "justifyMode": "auto",
           "orientation": "auto",
-          "reduceOptions": {
-            "values": false,
-            "calcs": ["lastNotNull"],
-            "fields": ""
-          },
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
           "textMode": "auto"
         },
         "pluginVersion": "10.0.0",
         "targets": [
           {
-            "datasource": {
-              "type": "loki",
-              "uid": "${DS_LOKI}"
-            },
+            "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
             "editorMode": "code",
             "expr": "sum(count_over_time({app=~\"$app\"} [$__range]))",
             "legendFormat": "",
@@ -258,53 +190,30 @@
         "type": "stat"
       },
       {
-        "datasource": {
-          "type": "loki",
-          "uid": "${DS_LOKI}"
-        },
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
         "fieldConfig": {
           "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
+            "color": { "mode": "thresholds" },
             "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "green", "value": null },
-                { "color": "red", "value": 1 }
-              ]
-            },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
             "unit": "short"
           },
           "overrides": []
         },
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 6,
-          "y": 8
-        },
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
         "id": 3,
         "options": {
           "colorMode": "value",
           "graphMode": "area",
           "justifyMode": "auto",
           "orientation": "auto",
-          "reduceOptions": {
-            "values": false,
-            "calcs": ["lastNotNull"],
-            "fields": ""
-          },
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
           "textMode": "auto"
         },
         "pluginVersion": "10.0.0",
         "targets": [
           {
-            "datasource": {
-              "type": "loki",
-              "uid": "${DS_LOKI}"
-            },
+            "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
             "editorMode": "code",
             "expr": "sum(count_over_time({app=~\"$app\", level=\"ERROR\"} [$__range]))",
             "legendFormat": "",
@@ -316,53 +225,30 @@
         "type": "stat"
       },
       {
-        "datasource": {
-          "type": "loki",
-          "uid": "${DS_LOKI}"
-        },
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
         "fieldConfig": {
           "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
+            "color": { "mode": "thresholds" },
             "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "green", "value": null },
-                { "color": "yellow", "value": 1 }
-              ]
-            },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }] },
             "unit": "short"
           },
           "overrides": []
         },
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 12,
-          "y": 8
-        },
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
         "id": 4,
         "options": {
           "colorMode": "value",
           "graphMode": "area",
           "justifyMode": "auto",
           "orientation": "auto",
-          "reduceOptions": {
-            "values": false,
-            "calcs": ["lastNotNull"],
-            "fields": ""
-          },
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
           "textMode": "auto"
         },
         "pluginVersion": "10.0.0",
         "targets": [
           {
-            "datasource": {
-              "type": "loki",
-              "uid": "${DS_LOKI}"
-            },
+            "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
             "editorMode": "code",
             "expr": "sum(count_over_time({app=~\"$app\", level=\"WARN\"} [$__range]))",
             "legendFormat": "",
@@ -374,53 +260,31 @@
         "type": "stat"
       },
       {
-        "datasource": {
-          "type": "loki",
-          "uid": "${DS_LOKI}"
-        },
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
         "fieldConfig": {
           "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
+            "color": { "mode": "thresholds" },
             "mappings": [],
             "noValue": "0",
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "green", "value": null }
-              ]
-            },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
             "unit": "short"
           },
           "overrides": []
         },
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 18,
-          "y": 8
-        },
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
         "id": 5,
         "options": {
           "colorMode": "value",
           "graphMode": "area",
           "justifyMode": "auto",
           "orientation": "auto",
-          "reduceOptions": {
-            "values": false,
-            "calcs": ["lastNotNull"],
-            "fields": ""
-          },
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
           "textMode": "auto"
         },
         "pluginVersion": "10.0.0",
         "targets": [
           {
-            "datasource": {
-              "type": "loki",
-              "uid": "${DS_LOKI}"
-            },
+            "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
             "editorMode": "code",
             "expr": "sum(count_over_time({app=~\"$app\", level=\"INFO\"} [$__range]))",
             "legendFormat": "",
@@ -432,16 +296,8 @@
         "type": "stat"
       },
       {
-        "datasource": {
-          "type": "loki",
-          "uid": "${DS_LOKI}"
-        },
-        "gridPos": {
-          "h": 12,
-          "w": 24,
-          "x": 0,
-          "y": 12
-        },
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+        "gridPos": { "h": 12, "w": 24, "x": 0, "y": 12 },
         "id": 6,
         "options": {
           "dedupStrategy": "none",
@@ -456,10 +312,7 @@
         "pluginVersion": "10.0.0",
         "targets": [
           {
-            "datasource": {
-              "type": "loki",
-              "uid": "${DS_LOKI}"
-            },
+            "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
             "editorMode": "code",
             "expr": "{app=~\"$app\", level=~\"$level\"} |~ \"$search\"",
             "legendFormat": "",
@@ -471,16 +324,8 @@
         "type": "logs"
       },
       {
-        "datasource": {
-          "type": "loki",
-          "uid": "${DS_LOKI}"
-        },
-        "gridPos": {
-          "h": 10,
-          "w": 24,
-          "x": 0,
-          "y": 24
-        },
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
         "id": 7,
         "options": {
           "dedupStrategy": "none",
@@ -495,10 +340,7 @@
         "pluginVersion": "10.0.0",
         "targets": [
           {
-            "datasource": {
-              "type": "loki",
-              "uid": "${DS_LOKI}"
-            },
+            "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
             "editorMode": "code",
             "expr": "{app=~\"$app\", level=\"ERROR\"}",
             "legendFormat": "",
@@ -513,19 +355,12 @@
     "refresh": "10s",
     "schemaVersion": 38,
     "style": "dark",
-    "tags": ["3gang", "logs", "loki"],
+    "tags": ["finy", "logs", "loki"],
     "templating": {
       "list": [
         {
-          "current": {
-            "selected": true,
-            "text": "3gang-gamify-test",
-            "value": "3gang-gamify-test"
-          },
-          "datasource": {
-            "type": "loki",
-            "uid": "${DS_LOKI}"
-          },
+          "current": { "selected": true, "text": "finy-service", "value": "finy-service" },
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
           "definition": "label_values(app)",
           "hide": 0,
           "includeAll": true,
@@ -535,21 +370,14 @@
           "options": [],
           "query": "label_values(app)",
           "refresh": 1,
-          "regex": "3gang.*",
+          "regex": "finy.*",
           "skipUrlSync": false,
           "sort": 1,
           "type": "query"
         },
         {
-          "current": {
-            "selected": true,
-            "text": ["All"],
-            "value": ["$__all"]
-          },
-          "datasource": {
-            "type": "loki",
-            "uid": "${DS_LOKI}"
-          },
+          "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
           "definition": "label_values(level)",
           "hide": 0,
           "includeAll": true,
@@ -565,35 +393,22 @@
           "type": "query"
         },
         {
-          "current": {
-            "selected": false,
-            "text": "",
-            "value": ""
-          },
+          "current": { "selected": false, "text": "", "value": "" },
           "hide": 0,
           "label": "Search",
           "name": "search",
-          "options": [
-            {
-              "selected": true,
-              "text": "",
-              "value": ""
-            }
-          ],
+          "options": [{ "selected": true, "text": "", "value": "" }],
           "query": "",
           "skipUrlSync": false,
           "type": "textbox"
         }
       ]
     },
-    "time": {
-      "from": "now-1h",
-      "to": "now"
-    },
+    "time": { "from": "now-1h", "to": "now" },
     "timepicker": {},
     "timezone": "browser",
-    "title": "3Gang Services - Logs",
-    "uid": "3gang-logs-simple",
+    "title": "Finy Services - Logs",
+    "uid": "finy-logs-simple",
     "version": 1,
     "weekStart": ""
   }

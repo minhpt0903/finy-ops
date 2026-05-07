@@ -108,7 +108,7 @@ pipeline {
                             -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
                             -e TZ=Asia/Ho_Chi_Minh \
                             -e GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/service-account-file.json \
-                            -e LOKI_URL=http://logs_loki:3100/loki/api/v1/push \
+                            -e LOKI_URL=http://loki:3100/loki/api/v1/push \
                             -e APP_NAME=${APP_NAME} \
                             -e VPS_NAME=test-server \
                             -e LOG_PATH=/logs \

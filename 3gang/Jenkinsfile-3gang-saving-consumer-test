@@ -12,6 +12,7 @@ pipeline {
 
     environment {
         APP_NAME = '3gang-saving-consumer'
+        SPRING_PROFILE = 'test'
         APP_PORT = '9001'
     }
 
@@ -90,6 +91,7 @@ pipeline {
                         podman rm ${APP_NAME}-test 2>/dev/null || true
                         podman run -d --name ${APP_NAME}-test \
                             --network finy-net \
+                            -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
                             -e SPRING_DATASOURCE_URL=${DB_URL} \
                             -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
                             -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
