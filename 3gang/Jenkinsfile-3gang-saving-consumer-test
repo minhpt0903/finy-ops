@@ -3,6 +3,7 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '7'))
+        gitLabConnection('gitlab-finy')
     }
 
     tools {
@@ -133,12 +134,14 @@ pipeline {
             echo "✓ Build SUCCESS"
             echo "Build: #${BUILD_NUMBER}"
             echo "========================================="
+            updateGitlabCommitStatus name: 'deploy', state: 'success'
         }
         failure {
             echo "========================================="
             echo "✗ Build FAILED"
             echo "Build: #${BUILD_NUMBER}"
             echo "========================================="
+            updateGitlabCommitStatus name: 'deploy', state: 'failed'
         }
         always {
             cleanWs()
