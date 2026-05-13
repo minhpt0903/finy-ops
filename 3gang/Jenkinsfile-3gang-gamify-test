@@ -21,20 +21,18 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                withCredentials([string(credentialsId: 'gitlab-3gang-url', variable: 'GIT_URL')]) {
-                    script {
-                        echo "=========================================="
-                        echo "Build Configuration:"
-                        echo "  Environment: test"
-                        echo "  Git Branch: feature/tbg-3"
-                        echo "  Spring Profile: ${SPRING_PROFILE}"
-                        echo "  Application Port: ${APP_PORT}"
-                        echo "=========================================="
-                    }
-                    git branch: 'New-3gang-test',
-                        url: "${GIT_URL}",
-                        credentialsId: 'gitlab-finy-credentials'
+                script {
+                    echo "=========================================="
+                    echo "Build Configuration:"
+                    echo "  Environment: test"
+                    echo "  Git Branch: feature/tbg-3"
+                    echo "  Spring Profile: ${SPRING_PROFILE}"
+                    echo "  Application Port: ${APP_PORT}"
+                    echo "=========================================="
                 }
+                git branch: 'New-3gang-test',
+                    url: "https://gitlab.finy.vn/3gang/api.git",
+                    credentialsId: 'gitlab-finy-credentials'
             }
         }
 
