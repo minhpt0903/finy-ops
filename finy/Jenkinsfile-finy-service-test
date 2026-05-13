@@ -16,20 +16,18 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                withCredentials([string(credentialsId: 'git-finy-api-test-url', variable: 'GIT_URL')]) {
-                    script {
-                        echo "=========================================="
-                        echo "Build Configuration:"
-                        echo "  Environment: test"
-                        echo "  Git Branch: test"
-                        echo "  Spring Profile: ${SPRING_PROFILE}"
-                        echo "  Application Port: ${APP_PORT}"
-                        echo "=========================================="
-                    }
-                    git branch: 'test',
-                        url: "${GIT_URL}",
-                        credentialsId: 'git-credentials'
+                script {
+                    echo "=========================================="
+                    echo "Build Configuration:"
+                    echo "  Environment: test"
+                    echo "  Git Branch: test"
+                    echo "  Spring Profile: ${SPRING_PROFILE}"
+                    echo "  Application Port: ${APP_PORT}"
+                    echo "=========================================="
                 }
+                git branch: 'test',
+                    url: 'https://gitlab.finy.vn/finy/api.git',
+                    credentialsId: 'gitlab-finy-credentials'
             }
         }
 
