@@ -6,6 +6,16 @@ pipeline {
         gitLabConnection('gitlab-finy')
     }
 
+    triggers {
+        gitlab(
+            triggerOnPush: true,
+            triggerOnMergeRequest: false,
+            triggerOnAcceptedMergeRequest: false,
+            branchFilterType: 'NameBasedFilter',
+            includeBranchesSpec: 'test'
+        )
+    }
+
     tools {
         gradle 'Gradle-8.0'
         jdk 'JDK-17'
@@ -15,7 +25,7 @@ pipeline {
         APP_NAME = '3gang-fmarket'
         SPRING_PROFILE = 'test'
         APP_PORT = '9006'
-    }
+}
 
     stages {
 
@@ -31,7 +41,7 @@ pipeline {
                     echo "=========================================="
                 }
                 git branch: 'test',
-                    url: 'https://gitlab.finy.vn/3gang/fmarket.git',
+                    url: "https://gitlab.finy.vn/3gang/fmarket.git",
                     credentialsId: 'gitlab-finy-credentials'
             }
         }
@@ -54,18 +64,27 @@ pipeline {
         stage('Build Image') {
             steps {
                 script {
-                    def imageTag = "${APP_NAME}:test-${BUILD_NUMBER}"
-                    def latestTag = "${APP_NAME}:test-latest"
                     echo "=========================================="
-                    echo "Building container image with Podman..."
-                    echo "Image: ${imageTag}"
-                    echo "Latest: ${latestTag}"
+                    echo "Transferring and building image on lb-test-01..."
+                    echo "Image: ${APP_NAME}:test-${BUILD_NUMBER}"
                     echo "=========================================="
-                    sh """
-                        export CONTAINER_HOST=unix:///run/podman/podman.sock
-                        podman build -t ${imageTag} -t ${latestTag} .
-                    """
-                    echo "✅ Image built successfully"
+                }
+                sh '''
+                    ssh jen@lb-test-01 "mkdir -p /tmp/${APP_NAME}-build/build/libs"
+                    scp build/libs/*.jar jen@lb-test-01:/tmp/${APP_NAME}-build/build/libs/
+                    scp Dockerfile jen@lb-test-01:/tmp/${APP_NAME}-build/
+                    ssh jen@lb-test-01 bash << BUILDSSH
+set -e
+sudo podman build \
+    -t localhost/${APP_NAME}:test-${BUILD_NUMBER} \
+    -t localhost/${APP_NAME}:test-latest \
+    /tmp/${APP_NAME}-build/
+rm -rf /tmp/${APP_NAME}-build
+echo "Image built: localhost/${APP_NAME}:test-${BUILD_NUMBER}"
+BUILDSSH
+                '''
+                script {
+                    echo "✅ Image built on lb-test-01: ${APP_NAME}:test-${BUILD_NUMBER}"
                 }
             }
         }
@@ -87,47 +106,46 @@ pipeline {
                         credentialsId: 'db-3gang-gamify-test-credentials',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
-                    ),
-                    string(
-                        credentialsId: 'db-3gang-gamify-test-url',
-                        variable: 'DB_URL'
                     )
                 ]) {
                     sh '''
-                        export CONTAINER_HOST=unix:///run/podman/podman.sock
-                        podman stop ${APP_NAME}-test 2>/dev/null || true
-                        podman rm ${APP_NAME}-test 2>/dev/null || true
-                        podman run -d --name ${APP_NAME}-test \
-                            --network finy-net \
-                            -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
-                            -e SPRING_DATASOURCE_URL=${DB_URL} \
-                            -e SPRING_DATASOURCE_USERNAME=${DB_USER} \
-                            -e SPRING_DATASOURCE_PASSWORD=${DB_PASS} \
-                            -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
-                            -e TZ=Asia/Ho_Chi_Minh \
-                            -e LOKI_URL=http://loki:3100/loki/api/v1/push \
-                            -e APP_NAME=${APP_NAME} \
-                            -e LOG_PATH=/logs \
-                            -e VPS_NAME=test-server \
-                            -p ${APP_PORT}:9001 \
-                            -v /home/3gang-services/fmarket/logs:/logs:Z \
-                            --restart unless-stopped \
-                            ${APP_NAME}:test-${BUILD_NUMBER}
-                        echo 'Waiting for application to start...'
-                        sleep 10
-                        podman logs --tail 30 ${APP_NAME}-test
+                        set -e
+                        echo "Deploying on remote server..."
+                        ssh jen@lb-test-01 bash << ENDSSH
+sudo podman stop ${APP_NAME}-test 2>/dev/null || true
+sudo podman rm ${APP_NAME}-test 2>/dev/null || true
+sudo podman run -d --name ${APP_NAME}-test \\
+    --network finy-net \\
+    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
+    -e SPRING_DATASOURCE_USERNAME="${DB_USER}" \\
+    -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
+    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
+    -e TZ=Asia/Ho_Chi_Minh \\
+    -e LOKI_URL=http://loki:3100/loki/api/v1/push \\
+    -e APP_NAME=${APP_NAME} \\
+    -e VPS_NAME=test-server \\
+    -e LOG_PATH=/logs \\
+    -p ${APP_PORT}:9001 \\
+    -v /home/3gang-services/fmarket/logs:/logs:Z \\
+    --restart unless-stopped \\
+    localhost/${APP_NAME}:test-${BUILD_NUMBER}
+sleep 10
+sudo podman logs --tail 30 ${APP_NAME}-test
+ENDSSH
                     '''
                 }
                 script {
+                    echo "✅ TEST deployed via SSH to lb-test-01"
                     echo "=========================================="
                     echo "✅ Deployment completed!"
-                    echo "Application URL: http://localhost:${APP_PORT}"
+                    echo "Application URL: http://lb-test-01:${APP_PORT}"
                     echo "Container: ${APP_NAME}-test"
                     echo "Image: ${APP_NAME}:test-${BUILD_NUMBER}"
                     echo ""
-                    echo "  View logs: podman logs -f ${APP_NAME}-test"
-                    echo "  Stop:      podman stop ${APP_NAME}-test"
-                    echo "  Restart:   podman restart ${APP_NAME}-test"
+                    echo "  View logs: ssh jen@lb-test-01 sudo podman logs -f ${APP_NAME}-test"
+                    echo "  Stop:      ssh jen@lb-test-01 sudo podman stop ${APP_NAME}-test"
+                    echo "  Restart:   ssh jen@lb-test-01 sudo podman restart ${APP_NAME}-test"
                     echo "=========================================="
                 }
             }
