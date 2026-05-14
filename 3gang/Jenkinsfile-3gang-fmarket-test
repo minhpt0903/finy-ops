@@ -66,7 +66,7 @@ pipeline {
                 script {
                     echo "=========================================="
                     echo "Transferring and building image on lb-test-01..."
-                    echo "Image: ${APP_NAME}:test-${BUILD_NUMBER}"
+                    echo "Image: ${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
                     echo "=========================================="
                 }
                 sh '''
@@ -76,15 +76,15 @@ pipeline {
                     ssh jen@lb-test-01 bash << BUILDSSH
 set -e
 sudo podman build \
-    -t localhost/${APP_NAME}:test-${BUILD_NUMBER} \
-    -t localhost/${APP_NAME}:test-latest \
+    -t localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER} \
+    -t localhost/${APP_NAME}:${SPRING_PROFILE}-latest \
     /tmp/${APP_NAME}-build/
 rm -rf /tmp/${APP_NAME}-build
-echo "Image built: localhost/${APP_NAME}:test-${BUILD_NUMBER}"
+echo "Image built: localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
 BUILDSSH
                 '''
                 script {
-                    echo "✅ Image built on lb-test-01: ${APP_NAME}:test-${BUILD_NUMBER}"
+                    echo "✅ Image built on lb-test-01: ${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
                 }
             }
         }
@@ -92,8 +92,8 @@ BUILDSSH
         stage('Deploy') {
             steps {
                 script {
-                    def imageTag = "${APP_NAME}:test-${BUILD_NUMBER}"
-                    def containerName = "${APP_NAME}-test"
+                    def imageTag = "${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
+                    def containerName = "${APP_NAME}-${SPRING_PROFILE}"
                     echo "=========================================="
                     echo "Deploying to test environment"
                     echo "Spring Profile: ${SPRING_PROFILE}"
@@ -112,9 +112,9 @@ BUILDSSH
                         set -e
                         echo "Deploying on remote server..."
                         ssh jen@lb-test-01 bash << ENDSSH
-sudo podman stop ${APP_NAME}-test 2>/dev/null || true
-sudo podman rm ${APP_NAME}-test 2>/dev/null || true
-sudo podman run -d --name ${APP_NAME}-test \\
+sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
+sudo podman rm ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
+sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     --network finy-net \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
     -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
@@ -129,9 +129,9 @@ sudo podman run -d --name ${APP_NAME}-test \\
     -p ${APP_PORT}:9001 \\
     -v /home/3gang-services/fmarket/logs:/logs:Z \\
     --restart unless-stopped \\
-    localhost/${APP_NAME}:test-${BUILD_NUMBER}
+    localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}
 sleep 10
-sudo podman logs --tail 30 ${APP_NAME}-test
+sudo podman logs --tail 30 ${APP_NAME}-${SPRING_PROFILE}
 ENDSSH
                     '''
                 }
@@ -140,12 +140,12 @@ ENDSSH
                     echo "=========================================="
                     echo "✅ Deployment completed!"
                     echo "Application URL: http://lb-test-01:${APP_PORT}"
-                    echo "Container: ${APP_NAME}-test"
-                    echo "Image: ${APP_NAME}:test-${BUILD_NUMBER}"
+                    echo "Container: ${APP_NAME}-${SPRING_PROFILE}"
+                    echo "Image: ${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
                     echo ""
-                    echo "  View logs: ssh jen@lb-test-01 sudo podman logs -f ${APP_NAME}-test"
-                    echo "  Stop:      ssh jen@lb-test-01 sudo podman stop ${APP_NAME}-test"
-                    echo "  Restart:   ssh jen@lb-test-01 sudo podman restart ${APP_NAME}-test"
+                    echo "  View logs: ssh jen@lb-test-01 sudo podman logs -f ${APP_NAME}-${SPRING_PROFILE}"
+                    echo "  Stop:      ssh jen@lb-test-01 sudo podman stop ${APP_NAME}-${SPRING_PROFILE}"
+                    echo "  Restart:   ssh jen@lb-test-01 sudo podman restart ${APP_NAME}-${SPRING_PROFILE}"
                     echo "=========================================="
                 }
             }
