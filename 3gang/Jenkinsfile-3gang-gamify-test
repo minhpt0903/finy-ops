@@ -22,9 +22,9 @@ pipeline {
     }
 
     environment {
-        APP_NAME = '3gang-gamify-test'
+        APP_NAME = '3gang-gamify'
         SPRING_PROFILE = 'test'
-        APP_PORT = '8000'
+        APP_PORT = '9000'
 }
 
     stages {
