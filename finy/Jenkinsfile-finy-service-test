@@ -1,15 +1,30 @@
 pipeline {
     agent any
 
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '7'))
+        gitLabConnection('gitlab-finy')
+    }
+
+    triggers {
+        gitlab(
+            triggerOnPush: true,
+            triggerOnMergeRequest: false,
+            triggerOnAcceptedMergeRequest: false,
+            branchFilterType: 'NameBasedFilter',
+            includeBranchesSpec: 'test'
+        )
+    }
+
     tools {
         gradle 'Gradle-8.0'
         jdk 'JDK-17'
     }
 
     environment {
-        APP_NAME = 'lendbiz-apigateway'
+        APP_NAME = 'finy-service'
         SPRING_PROFILE = 'test'
-        APP_PORT = '9100'
+        APP_PORT = '9110'
     }
 
     stages {
@@ -38,30 +53,38 @@ pipeline {
                     echo "Using Spring Profile: ${SPRING_PROFILE}"
                 }
                 sh 'gradle --version'
-                sh """
-                    gradle clean build \
+                sh '''
+                    gradle clean bootJar \
                         -Pspring.profiles.active=${SPRING_PROFILE} \
-                        -x test \
                         --no-daemon
-                """
+                '''
             }
         }
 
         stage('Build Image') {
             steps {
                 script {
-                    def imageTag = "${APP_NAME}:test-${BUILD_NUMBER}"
-                    def latestTag = "${APP_NAME}:test-latest"
                     echo "=========================================="
-                    echo "Building container image with Podman..."
-                    echo "Image: ${imageTag}"
-                    echo "Latest: ${latestTag}"
+                    echo "Transferring and building image on lb-test-01..."
+                    echo "Image: ${APP_NAME}:test-${BUILD_NUMBER}"
                     echo "=========================================="
-                    sh """
-                        export CONTAINER_HOST=unix:///run/podman/podman.sock
-                        podman build -t ${imageTag} -t ${latestTag} .
-                    """
-                    echo "✅ Image built successfully"
+                }
+                sh '''
+                    ssh jen@lb-test-01 "mkdir -p /tmp/${APP_NAME}-build/build/libs"
+                    scp build/libs/*.jar jen@lb-test-01:/tmp/${APP_NAME}-build/build/libs/
+                    scp Dockerfile jen@lb-test-01:/tmp/${APP_NAME}-build/
+                    ssh jen@lb-test-01 bash << BUILDSSH
+set -e
+sudo podman build \
+    -t localhost/${APP_NAME}:test-${BUILD_NUMBER} \
+    -t localhost/${APP_NAME}:test-latest \
+    /tmp/${APP_NAME}-build/
+rm -rf /tmp/${APP_NAME}-build
+echo "Image built: localhost/${APP_NAME}:test-${BUILD_NUMBER}"
+BUILDSSH
+                '''
+                script {
+                    echo "✅ Image built on lb-test-01: ${APP_NAME}:test-${BUILD_NUMBER}"
                 }
             }
         }
@@ -80,53 +103,49 @@ pipeline {
                 }
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'db-test-credentials',
+                        credentialsId: 'db-finy-test-credentials',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
-                    ),
-                    string(
-                        credentialsId: 'db-test-url',
-                        variable: 'DB_URL'
-                    ),
-                    string(credentialsId: 'finy-log-path-test', variable: 'LOG_PATH'),
-                    string(credentialsId: 'finy-contract-path-test', variable: 'CONTRACT_PATH'),
-
+                    )
                 ]) {
                     sh '''
-                        export CONTAINER_HOST=unix:///run/podman/podman.sock
-                        podman stop $APP_NAME-test 2>/dev/null || true
-                        podman rm $APP_NAME-test 2>/dev/null || true
-                        podman run -d --name $APP_NAME-test \
-                            --network finy-net \
-                            -e SPRING_PROFILES_ACTIVE=$SPRING_PROFILE \
-                            -e SPRING_DATASOURCE_URL=$DB_URL \
-                            -e SPRING_DATASOURCE_USERNAME=$DB_USER \
-                            -e SPRING_DATASOURCE_PASSWORD=$DB_PASS \
-                            -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
-                            -e LOGGING_CONFIG=classpath:logback-spring.xml \
-                            -e LOG_PATH=$LOG_PATH \
-                            -v $LOG_PATH:/logs:Z \
-                            -e CONTRACT_PATH=$CONTRACT_PATH \
-                            -v $CONTRACT_PATH:/hoso:Z \
-                            -p $APP_PORT:9100 \
-                            --restart unless-stopped \
-                            $APP_NAME:test-$BUILD_NUMBER
-                        echo 'Waiting for application to start...'
-                        sleep 10
-                        podman logs --tail 30 $APP_NAME-test
+                        set -e
+                        echo "Deploying on remote server..."
+                        ssh jen@lb-test-01 bash << ENDSSH
+sudo podman stop ${APP_NAME}-test 2>/dev/null || true
+sudo podman rm ${APP_NAME}-test 2>/dev/null || true
+sudo podman run -d --name ${APP_NAME}-test \\
+    --network finy-net \\
+    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.123:1521/VITA" \\
+    -e SPRING_DATASOURCE_USERNAME="${DB_USER}" \\
+    -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
+    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
+    -e TZ=Asia/Ho_Chi_Minh \\
+    -e LOGGING_CONFIG=classpath:logback-spring.xml \\
+    -e LOG_PATH=/home/finy-service/logs \\
+    -e CONTRACT_PATH=/home/finy-service/documents \\
+    -p ${APP_PORT}:9100 \\
+    -v /home/finy-service/logs:/logs:Z \\
+    -v /home/finy-service/documents:/hoso:Z \\
+    --restart unless-stopped \\
+    localhost/${APP_NAME}:test-${BUILD_NUMBER}
+sleep 10
+sudo podman logs --tail 30 ${APP_NAME}-test
+ENDSSH
                     '''
                 }
                 script {
-                    echo "✅ TEST deployed with injected credentials"
+                    echo "✅ TEST deployed via SSH to lb-test-01"
                     echo "=========================================="
                     echo "✅ Deployment completed!"
-                    echo "Application URL: http://localhost:${APP_PORT}"
+                    echo "Application URL: http://lb-test-01:${APP_PORT}"
                     echo "Container: ${APP_NAME}-test"
                     echo "Image: ${APP_NAME}:test-${BUILD_NUMBER}"
                     echo ""
-                    echo "  View logs: podman logs -f ${APP_NAME}-test"
-                    echo "  Stop:      podman stop ${APP_NAME}-test"
-                    echo "  Restart:   podman restart ${APP_NAME}-test"
+                    echo "  View logs: ssh jen@lb-test-01 sudo podman logs -f ${APP_NAME}-test"
+                    echo "  Stop:      ssh jen@lb-test-01 sudo podman stop ${APP_NAME}-test"
+                    echo "  Restart:   ssh jen@lb-test-01 sudo podman restart ${APP_NAME}-test"
                     echo "=========================================="
                 }
             }
@@ -145,12 +164,14 @@ pipeline {
             echo "✓ Build SUCCESS"
             echo "Build: #${BUILD_NUMBER}"
             echo "========================================="
+            updateGitlabCommitStatus name: 'deploy', state: 'success'
         }
         failure {
             echo "========================================="
-            echo "✗ Build FAILED"  
+            echo "✗ Build FAILED"
             echo "Build: #${BUILD_NUMBER}"
             echo "========================================="
+            updateGitlabCommitStatus name: 'deploy', state: 'failed'
         }
         always {
             cleanWs()
