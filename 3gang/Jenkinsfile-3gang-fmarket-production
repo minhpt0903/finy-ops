@@ -12,7 +12,7 @@ pipeline {
             triggerOnMergeRequest: false,
             triggerOnAcceptedMergeRequest: false,
             branchFilterType: 'NameBasedFilter',
-            includeBranchesSpec: 'gateway_vnpt_econtract'
+            includeBranchesSpec: 'main'
         )
     }
 
@@ -22,10 +22,10 @@ pipeline {
     }
 
     environment {
-        APP_NAME = 'finy-econtract-service'
+        APP_NAME = '3gang-fmarket'
         SPRING_PROFILE = 'prod'
-        APP_PORT = '9200'
-    }
+        APP_PORT = '9103'
+}
 
     stages {
 
@@ -35,13 +35,13 @@ pipeline {
                     echo "=========================================="
                     echo "Build Configuration:"
                     echo "  Environment: prod"
-                    echo "  Git Branch: gateway_vnpt_econtract"
+                    echo "  Git Branch: main"
                     echo "  Spring Profile: ${SPRING_PROFILE}"
                     echo "  Application Port: ${APP_PORT}"
                     echo "=========================================="
                 }
-                git branch: 'gateway_vnpt_econtract',
-                    url: 'https://gitlab.finy.vn/finy/api.git',
+                git branch: 'main',
+                    url: "https://gitlab.finy.vn/3gang/fmarket.git",
                     credentialsId: 'gitlab-finy-credentials'
             }
         }
@@ -54,9 +54,8 @@ pipeline {
                 }
                 sh 'gradle --version'
                 sh '''
-                    gradle clean build \
+                    gradle clean bootJar \
                         -Pspring.profiles.active=${SPRING_PROFILE} \
-                        -x test \
                         --no-daemon
                 '''
             }
@@ -66,15 +65,15 @@ pipeline {
             steps {
                 script {
                     echo "=========================================="
-                    echo "Transferring and building image on fn-api-01..."
+                    echo "Transferring and building image on 3g-service-01..."
                     echo "Image: ${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
                     echo "=========================================="
                 }
                 sh '''
-                    ssh jen@fn-api-01 "mkdir -p /tmp/${APP_NAME}-build/build/libs"
-                    scp build/libs/*.jar jen@fn-api-01:/tmp/${APP_NAME}-build/build/libs/
-                    scp Dockerfile jen@fn-api-01:/tmp/${APP_NAME}-build/
-                    ssh jen@fn-api-01 bash << BUILDSSH
+                    ssh jen@3g-service-01 "mkdir -p /tmp/${APP_NAME}-build/build/libs"
+                    scp build/libs/*.jar jen@3g-service-01:/tmp/${APP_NAME}-build/build/libs/
+                    scp Dockerfile jen@3g-service-01:/tmp/${APP_NAME}-build/
+                    ssh jen@3g-service-01 bash << BUILDSSH
 set -e
 sudo podman build \
     -t localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER} \
@@ -85,7 +84,7 @@ echo "Image built: localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
 BUILDSSH
                 '''
                 script {
-                    echo "✅ Image built on fn-api-01: ${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
+                    echo "✅ Image built on 3g-service-01: ${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
                 }
             }
         }
@@ -99,53 +98,36 @@ BUILDSSH
                     echo "Deploying to production environment"
                     echo "Spring Profile: ${SPRING_PROFILE}"
                     echo "Container: ${containerName}"
-                    echo "Port: ${APP_PORT}:9200"
+                    echo "Port: ${APP_PORT}:9001"
                     echo "=========================================="
                 }
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'finy-db-oracle-prod',
+                        credentialsId: '3gang-db-prod-credential',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
-                    ),
-                    string(credentialsId: 'finy-econtract-client-domain-prod', variable: 'FINY_CLIENT_DOMAIN'),
-                    string(credentialsId: 'finy-econtract-vnpt-domain-prod', variable: 'VNPT_DOMAIN'),
-                    string(credentialsId: 'finy-econtract-vnpt-username-prod', variable: 'VNPT_USERNAME'),
-                    string(credentialsId: 'finy-econtract-vnpt-password-prod', variable: 'VNPT_PASSWORD'),
-                    string(credentialsId: 'finy-econtract-vnpt-clientid-prod', variable: 'VNPT_CLIENTID'),
-                    string(credentialsId: 'finy-econtract-vnpt-clientsecret-prod', variable: 'VNPT_CLIENTSECRET'),
+                    )
                 ]) {
                     sh '''
                         set -e
                         echo "Deploying on remote server..."
-                        KAFKA_IP=192.168.20.200
-                        ssh jen@fn-api-01 bash << ENDSSH
+                        ssh jen@3g-service-01 bash << ENDSSH
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman rm ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
-    --network podman \\
-    --add-host kafka:${KAFKA_IP} \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
-    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.123:1521/VITA" \\
+    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
     -e SPRING_DATASOURCE_USERNAME="${DB_USER}" \\
     -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
-    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
+    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=192.168.210.102:9092 \\
     -e TZ=Asia/Ho_Chi_Minh \\
-    -e LOKI_URL=http://loki:3100/loki/api/v1/push \\
+    -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
     -e APP_NAME=${APP_NAME} \\
     -e VPS_NAME=prod-server \\
-    -e LOG_PATH=/home/finy-econtract-service/logs \\
-    -e FINY_URL=https://apitest.finy.vn \\
-    -e FINY_CLIENT_DOMAIN="${FINY_CLIENT_DOMAIN}" \\
-    -e VNPT_DOMAIN="${VNPT_DOMAIN}" \\
-    -e VNPT_USERNAME="${VNPT_USERNAME}" \\
-    -e VNPT_PASSWORD="${VNPT_PASSWORD}" \\
-    -e VNPT_CLIENTID="${VNPT_CLIENTID}" \\
-    -e VNPT_CLIENTSECRET="${VNPT_CLIENTSECRET}" \\
-    -e ECONTRACT_RELEASE_VERSION=1 \\
-    -e ENVIRONMENT=PROD \\
-    -p ${APP_PORT}:9200 \\
-    -v /home/finy-econtract-service/logs:/logs:Z \\
+    -e LOG_PATH=/logs \\
+    -p ${APP_PORT}:9001 \\
+    -v /home/3GangFmarketProd/logs:/logs:Z \\
+    -v /home/3GangProd/ekyc:/home/3GangProd/ekyc:Z \\
     --restart unless-stopped \\
     localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}
 sleep 10
@@ -154,16 +136,16 @@ ENDSSH
                     '''
                 }
                 script {
-                    echo "✅ PRODUCTION deployed via SSH to fn-api-01"
+                    echo "✅ PRODUCTION deployed via SSH to 3g-service-01"
                     echo "=========================================="
                     echo "✅ Deployment completed!"
-                    echo "Application URL: http://fn-api-01:${APP_PORT}"
+                    echo "Application URL: http://3g-service-01:${APP_PORT}"
                     echo "Container: ${APP_NAME}-${SPRING_PROFILE}"
                     echo "Image: ${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
                     echo ""
-                    echo "  View logs: ssh jen@fn-api-01 sudo podman logs -f ${APP_NAME}-${SPRING_PROFILE}"
-                    echo "  Stop:      ssh jen@fn-api-01 sudo podman stop ${APP_NAME}-${SPRING_PROFILE}"
-                    echo "  Restart:   ssh jen@fn-api-01 sudo podman restart ${APP_NAME}-${SPRING_PROFILE}"
+                    echo "  View logs: ssh jen@3g-service-01 sudo podman logs -f ${APP_NAME}-${SPRING_PROFILE}"
+                    echo "  Stop:      ssh jen@3g-service-01 sudo podman stop ${APP_NAME}-${SPRING_PROFILE}"
+                    echo "  Restart:   ssh jen@3g-service-01 sudo podman restart ${APP_NAME}-${SPRING_PROFILE}"
                     echo "=========================================="
                 }
             }
