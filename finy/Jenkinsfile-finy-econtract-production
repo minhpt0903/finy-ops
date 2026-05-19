@@ -123,7 +123,7 @@ BUILDSSH
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman rm ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
-    --network podman \\
+    --network finy-net \\
     --add-host kafka:${KAFKA_IP} \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
     -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.123:1521/VITA" \\
@@ -131,7 +131,7 @@ sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
     -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
     -e TZ=Asia/Ho_Chi_Minh \\
-    -e LOKI_URL=http://loki:3100/loki/api/v1/push \\
+    -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
     -e APP_NAME=${APP_NAME} \\
     -e VPS_NAME=prod-server \\
     -e LOG_PATH=/home/finy-econtract-service/logs \\
