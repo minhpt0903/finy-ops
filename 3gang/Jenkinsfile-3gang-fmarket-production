@@ -24,7 +24,7 @@ pipeline {
     environment {
         APP_NAME = '3gang-fmarket'
         SPRING_PROFILE = 'prod'
-        APP_PORT = '9103'
+        APP_PORT = '9003'
 }
 
     stages {
@@ -81,6 +81,14 @@ sudo podman build \
     /tmp/${APP_NAME}-build/
 rm -rf /tmp/${APP_NAME}-build
 echo "Image built: localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}"
+sudo podman images --format "{{.Repository}}:{{.Tag}}" | \
+    grep "^localhost/${APP_NAME}:${SPRING_PROFILE}-[0-9]" | \
+    sort -t'-' -k2 -n | \
+    head -n -7 | \
+    xargs -r sudo podman image rm 2>/dev/null || true
+sudo podman ps -a --filter "name=${APP_NAME}" --filter "status=exited" -q | \
+    xargs -r sudo podman rm 2>/dev/null || true
+echo "Cleanup done for ${APP_NAME}"
 BUILDSSH
                 '''
                 script {
@@ -112,6 +120,7 @@ BUILDSSH
                         set -e
                         echo "Deploying on remote server..."
                         ssh jen@3g-service-01 bash << ENDSSH
+sudo podman stop fmarket 2>/dev/null || true
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman rm ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
@@ -119,7 +128,7 @@ sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
     -e SPRING_DATASOURCE_USERNAME="${DB_USER}" \\
     -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
-    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=192.168.210.102:9092 \\
+    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=42.112.38.103:9092 \\
     -e TZ=Asia/Ho_Chi_Minh \\
     -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
     -e APP_NAME=${APP_NAME} \\
