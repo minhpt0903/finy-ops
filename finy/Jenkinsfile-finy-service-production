@@ -104,7 +104,7 @@ BUILDSSH
                 }
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'db-finy-service-prod-credentials',
+                        credentialsId: 'finy-db-oracle-prod',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
                     )
@@ -126,11 +126,11 @@ sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     -e APP_NAME=${APP_NAME} \\
     -e VPS_NAME=prod-server \\
     -e LOGGING_CONFIG=classpath:logback-spring.xml \\
-    -e LOG_PATH=/home/finy-service/logs \\
-    -e CONTRACT_PATH=/home/finy-service/documents \\
+    -e LOG_PATH=/home/apigatewayfiny/logs \\
+    -e CONTRACT_PATH=/home/apigatewayfiny/documents \\
     -p ${APP_PORT}:9000 \\
-    -v /home/finy-service/logs:/logs:Z \\
-    -v /home/finy-service/documents:/hoso:Z \\
+    -v /home/apigatewayfiny/logs:/logs:Z \\
+    -v /home/apigatewayfiny/hoso:/hoso:Z \\
     --restart unless-stopped \\
     localhost/${APP_NAME}:${SPRING_PROFILE}-${BUILD_NUMBER}
 sleep 10
