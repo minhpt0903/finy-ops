@@ -106,9 +106,37 @@ services:
   - name: auth-test-service
     url: http://192.168.20.200:8000
     routes:
-      - name: auth-test-entry-route
+      - name: auth-test-route
         hosts: ["api.finy.vn"]
         paths: ["/t"]
+        strip_path: true
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/t"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/t"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+  - name: fe-hub-test
+    url: http://192.168.20.200:8800
+    routes:
+      - name: hub-test-route
+        hosts: ["app.finy.vn"]
+        paths: ["/t/hub"]
         strip_path: true
     plugins:
       - name: rate-limiting
