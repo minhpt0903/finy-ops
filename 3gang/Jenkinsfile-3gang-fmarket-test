@@ -117,7 +117,7 @@ sudo podman rm ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     --network finy-net \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
-    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
+    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.101:1521/LB" \\
     -e SPRING_DATASOURCE_USERNAME="${DB_USER}" \\
     -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
     -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\

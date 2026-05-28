@@ -108,6 +108,13 @@ BUILDSSH
                     echo "Port: ${APP_PORT}:9001"
                     echo "=========================================="
                 }
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: '3gang-db-prod-credential',
+                        usernameVariable: 'DB_USER',
+                        passwordVariable: 'DB_PASS'
+                    )
+                ]) {
                 sh '''
                     set -e
                     echo "Deploying on remote server..."
@@ -120,6 +127,10 @@ sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     -e TZ=Asia/Ho_Chi_Minh \\
     -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
     -e APP_NAME=${APP_NAME}-${SPRING_PROFILE} \\
+    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.101:1521/LB" \\
+    -e SPRING_DATASOURCE_USERNAME="${DB_USER}" \\
+    -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
+    -e SPRING_KAFKA_BOOTSTRAP_SERVERS=42.112.38.103:9092 \\
     -e VPS_NAME=prod-server \\
     -p ${APP_PORT}:9001 \\
     -v /home/3GangSavingConsumer/application.properties:/application.properties:ro \\
@@ -130,6 +141,7 @@ sleep 10
 sudo podman logs --tail 30 ${APP_NAME}-${SPRING_PROFILE}
 ENDSSH
                 '''
+                }
                 script {
                     echo "✅ PRODUCTION deployed via SSH to 3g-service-01"
                     echo "=========================================="
