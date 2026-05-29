@@ -127,6 +127,7 @@ sudo podman run -d \\
     -e BFF_AUTHORIZATION_SERVER_URL=https://api.finy.vn/p \
     -e CORS_ALLOWED_ORIGINS=https://app.finy.vn,https://api.finy.vn \\
     -e TZ=Asia/Ho_Chi_Minh \\
+    -e SHOW_TEST_RIBBON=false \\
     -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
     -e VPS_NAME=fn-api-01 \\
     -p ${APP_PORT}:8000 \\
