@@ -12,20 +12,20 @@ pipeline {
             triggerOnMergeRequest: false,
             triggerOnAcceptedMergeRequest: true,
             branchFilterType: 'NameBasedFilter',
-            includeBranchesSpec: 'test'
+            includeBranchesSpec: 'main'
         )
     }
 
     environment {
         APP_NAME       = 'core-fe-console-hub'
-        SPRING_PROFILE = 'test'
+        SPRING_PROFILE = 'prod'
         APP_PORT       = '8800'
         DOCKERHUB_REPO = 'minhpt3g/console-hub'
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
-        API_URL        = 'https://api.finy.vn/t/auth/api'
-        AUTH_URL       = 'https://api.finy.vn/t/auth'
-        BFF_URL        = 'https://api.finy.vn/t/auth'
-        BASE_HREF      = '/t/hub/'
+        API_URL        = 'https://api.finy.vn/p/auth/api'
+        AUTH_URL       = 'https://api.finy.vn/p/auth'
+        BFF_URL        = 'https://api.finy.vn/p/auth'
+        BASE_HREF      = '/p/hub/'
     }
 
     stages {
@@ -41,7 +41,7 @@ pipeline {
                     echo "  Deploy port  : ${APP_PORT}"
                     echo "=========================================="
                 }
-                git branch: 'test',
+                git branch: 'main',
                     url: 'http://gitlab.finy.vn/core/console-hub.git',
                     credentialsId: 'gitlab-finy-credentials'
                 updateGitlabCommitStatus name: 'checkout', state: 'success'
@@ -67,8 +67,8 @@ pipeline {
                         echo ${DOCKER_PASS} | podman login docker.io \
                             -u ${DOCKER_USER} --password-stdin
 
-                        podman push ${DOCKERHUB_REPO}:${IMAGE_TAG}
-                        podman push ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest
+                        podman push --format=docker ${DOCKERHUB_REPO}:${IMAGE_TAG}
+                        podman push --format=docker ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest
 
                         podman rmi ${DOCKERHUB_REPO}:${IMAGE_TAG} || true
                         podman rmi ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest || true
@@ -83,8 +83,8 @@ pipeline {
             steps {
                 updateGitlabCommitStatus name: 'deploy', state: 'running'
                 sh """
-                        ssh jen@lb-test-01 bash << 'ENDSSH'
-podman network exists finy-net || podman network create finy-net
+                        ssh jen@fn-api-01 bash << 'ENDSSH'
+sudo podman network exists finy-net || sudo podman network create finy-net
 sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
@@ -104,6 +104,15 @@ sudo podman run -d \
 
 sleep 5
 sudo podman logs --tail 20 ${APP_NAME}-${SPRING_PROFILE}
+
+sudo podman images --format "{{.Repository}}:{{.Tag}}" | \
+    grep "^docker.io/${DOCKERHUB_REPO}:${SPRING_PROFILE}-[0-9]" | \
+    sort -t'-' -k2 -n | \
+    head -n -7 | \
+    xargs -r sudo podman image rm 2>/dev/null || true
+sudo podman ps -a --filter "name=${APP_NAME}" --filter "status=exited" -q | \
+    xargs -r sudo podman rm 2>/dev/null || true
+echo "Cleanup done for ${APP_NAME}"
 ENDSSH
                     """
                 updateGitlabCommitStatus name: 'deploy', state: 'success'

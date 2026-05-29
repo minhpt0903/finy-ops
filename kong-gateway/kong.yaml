@@ -113,7 +113,7 @@ services:
           hour: 100000
           policy: local
 
-  - name: fe-hub-test
+  - name: core-fe-hub-test
     url: http://192.168.20.200:8800
     routes:
       - name: hub-test-route
@@ -127,6 +127,19 @@ services:
           hour: 100000
           policy: local
 
+  - name: core-fe-hub-prod
+    url: http://192.168.30.110:8800
+    routes:
+      - name: hub-prod-route
+        hosts: ["app.finy.vn"]
+        paths: ["/p/hub"]
+        strip_path: true
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
 
 
   # =========================================================
