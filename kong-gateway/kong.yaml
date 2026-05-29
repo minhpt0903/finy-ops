@@ -57,53 +57,7 @@ services:
   # 4. CỤM CORE SERVICES (DÙNG CHUNG)
   # Mở cổng công khai qua Gateway cho Auth và Minio
   # =========================================================
-  - name: core-auth-service
-    url: http://core-auth:8081
-    routes:
-      - name: core-auth-route
-        hosts: ["api.finy.vn", "api.3gang.vn", "api.fmarket.vn"] # Chấp nhận gọi từ tất cả các domain
-        paths: ["/core/auth"]
-        strip_path: true
-
-  - name: core-minio-service
-    url: http://minio:9000
-    routes:
-      - name: core-minio-route
-        hosts: ["api.finy.vn", "api.3gang.vn", "api.fmarket.vn"]
-        paths: ["/core/minio"]
-        strip_path: true
-
-  # =========================================================
-  # 5. CỤM TEST (lb-test-01 — 192.168.20.200)
-  # Truy cập qua /t/<tool>  — không yêu cầu auth
-  # =========================================================
-  - name: redpanda-test-service
-    url: http://192.168.20.200:3300
-    routes:
-      - name: redpanda-test-route
-        paths: ["/t/kafka"]
-        strip_path: true
-    plugins:
-      - name: rate-limiting
-        config:
-          second: 100
-          hour: 100000
-          policy: local
-
-  - name: grafana-test-service
-    url: http://192.168.20.200:3000
-    routes:
-      - name: grafana-test-route
-        paths: ["/t/grafana"]
-        strip_path: true
-    plugins:
-      - name: rate-limiting
-        config:
-          second: 100
-          hour: 100000
-          policy: local
-
-  - name: auth-test-service
+  - name: core-auth-test
     url: http://192.168.20.200:8000
     routes:
       - name: auth-test-route
@@ -131,12 +85,72 @@ services:
           hour: 100000
           policy: local
 
+  - name: core-auth-prod
+    url: http://192.168.30.110:8000
+    routes:
+      - name: auth-prod-route
+        hosts: ["api.finy.vn"]
+        paths: ["/p"]
+        strip_path: true
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
   - name: fe-hub-test
     url: http://192.168.20.200:8800
     routes:
       - name: hub-test-route
         hosts: ["app.finy.vn"]
         paths: ["/t/hub"]
+        strip_path: true
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+
+
+  # =========================================================
+  # 5. CỤM TEST (lb-test-01 — 192.168.20.200)
+  # Truy cập qua /t/<tool>  — không yêu cầu auth
+  # =========================================================
+  - name: redpanda-test-service
+    url: http://192.168.20.200:3300
+    routes:
+      - name: redpanda-test-route
+        paths: ["/t/kafka"]
+        strip_path: true
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+  - name: grafana-test-service
+    url: http://192.168.20.200:3000
+    routes:
+      - name: grafana-test-route
+        paths: ["/t/grafana"]
         strip_path: true
     plugins:
       - name: rate-limiting
@@ -185,3 +199,4 @@ plugins:
       second: 10                  # Tối đa 10 request/giây trên 1 IP
       hour: 20000                 # Tối đa 20.000 request/giờ
       policy: local
+
