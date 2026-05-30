@@ -1,0 +1,172 @@
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '7'))
+        gitLabConnection('gitlab-finy')
+    }
+
+    triggers {
+        gitlab(
+            triggerOnPush: true,
+            triggerOnMergeRequest: false,
+            triggerOnAcceptedMergeRequest: false,
+            branchFilterType: 'NameBasedFilter',
+            includeBranchesSpec: 'main'
+        )
+    }
+
+    environment {
+        APP_NAME       = '3gang-tsio-service'
+        SPRING_PROFILE = 'prod'
+        APP_PORT       = '8000'
+        DOCKERHUB_REPO = 'minhpt3g/3gang-tsio-service'
+        IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
+        JWT_ISSUER     = 'https://api.finy.vn/p/auth'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                updateGitlabCommitStatus name: 'checkout', state: 'running'
+                script {
+                    echo "=========================================="
+                    echo "Build Configuration:"
+                    echo "  Environment  : ${SPRING_PROFILE}"
+                    echo "  Image        : ${DOCKERHUB_REPO}:${IMAGE_TAG}"
+                    echo "  Deploy port  : ${APP_PORT}"
+                    echo "=========================================="
+                }
+                git branch: 'main',
+                    url: 'http://gitlab.finy.vn/3gang/tools/tsio-service',
+                    credentialsId: 'gitlab-finy-credentials'
+                updateGitlabCommitStatus name: 'checkout', state: 'success'
+            }
+        }
+
+        stage('Build & Push Image') {
+            steps {
+                updateGitlabCommitStatus name: 'build', state: 'running'
+                withCredentials([
+                    string(credentialsId: 'gitlab-finy-token', variable: 'GITLAB_TOKEN'),
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+                    sh '''
+                        podman build \
+                            --build-arg GITLAB_TOKEN=${GITLAB_TOKEN} \
+                            -t ${DOCKERHUB_REPO}:${IMAGE_TAG} \
+                            -t ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest \
+                            .
+
+                        echo ${DOCKER_PASS} | podman login docker.io \
+                            -u ${DOCKER_USER} --password-stdin
+
+                        podman push ${DOCKERHUB_REPO}:${IMAGE_TAG}
+                        podman push ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest
+
+                        podman rmi ${DOCKERHUB_REPO}:${IMAGE_TAG} || true
+                        podman rmi ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest || true
+                        podman logout docker.io
+                    '''
+                }
+                updateGitlabCommitStatus name: 'build', state: 'success'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                updateGitlabCommitStatus name: 'deploy', state: 'running'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: '3gang-db-prod-credential',
+                        usernameVariable: 'DB_USER',
+                        passwordVariable: 'DB_PASS'
+                    ),
+                    string(credentialsId: 'redis-pass-prod', variable: 'REDIS_PASS')
+                ]) {
+                    sh """
+                        ssh jen@3g-service-01 bash << 'ENDSSH'
+set -e
+mkdir -p /home/tsio/logs && sudo chown 1001:1001 /home/tsio/logs && chmod 755 /home/tsio/logs
+sudo podman network exists 3gang-net || sudo podman network create 3gang-net
+sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
+
+sudo podman stop 3gang-tsio-service-prod 2>/dev/null || true
+sudo podman rm   3gang-tsio-service-prod 2>/dev/null || true
+sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
+sudo podman rm   ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
+
+sudo podman run -d \\
+    --name ${APP_NAME}-${SPRING_PROFILE} \\
+    --network 3gang-net \\
+    -e APP_NAME=${APP_NAME} \\
+    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+    -e SERVER_PORT=8000 \\
+    -e CONTEXT_PATH=/t/tsio \\
+    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.101:1521/LB" \\
+    -e DB_USERNAME='${DB_USER}' \\
+    -e DB_PASSWORD='${DB_PASS}' \\
+    -e REDIS_HOST=192.168.30.110 \\
+    -e REDIS_PORT=6379 \\
+    -e REDIS_PASSWORD='${REDIS_PASS}' \\
+    -e REDIS_DB=0 \\
+    -e JWT_ISSUER=${JWT_ISSUER} \\
+    -e AUTHORIZED_CLIENT_IDS=tsio \\
+    -e BFF_COOKIE_DOMAIN=.finy.vn \\
+    -e BFF_COOKIE_SAME_SITE=None \\
+    -e BFF_PUBLIC_BASE_URL=https://api.finy.vn/p/tsio \\
+    -e BFF_AUTHORIZATION_SERVER_URL=https://api.finy.vn/p/auth \\
+    -e BFF_DEFAULT_FRONTEND_REDIRECT=https://app.finy.vn/dashboard \\
+    -e SSO_DEFAULT_CLIENT_ID=tsio \\
+    -e CORS_ALLOWED_ORIGINS=https://app.finy.vn,https://api.finy.vn \\
+    -e LOG_PATH=/app/logs \\
+    -e TZ=Asia/Ho_Chi_Minh \\
+    -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
+    -e VPS_NAME=3g-service-01 \\
+    -p ${APP_PORT}:8000 \\
+    -v /home/tsio/logs:/app/logs:Z \\
+    --restart unless-stopped \\
+    docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
+
+sleep 10
+sudo podman logs --tail 30 ${APP_NAME}-${SPRING_PROFILE}
+
+sudo podman images --format "{{.Repository}}:{{.Tag}}" | \\
+    grep "^docker.io/${DOCKERHUB_REPO}:${SPRING_PROFILE}-[0-9]" | \\
+    sort -t'-' -k2 -n | \\
+    head -n -7 | \\
+    xargs -r sudo podman image rm 2>/dev/null || true
+sudo podman ps -a --filter "name=${APP_NAME}" --filter "status=exited" -q | \\
+    xargs -r sudo podman rm 2>/dev/null || true
+echo "Cleanup done for ${APP_NAME}"
+ENDSSH
+                    """
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo "========================================="
+            echo "✓ Build SUCCESS — ${DOCKERHUB_REPO}:${IMAGE_TAG}"
+            echo "========================================="
+            updateGitlabCommitStatus name: 'deploy', state: 'success'
+        }
+        failure {
+            echo "========================================="
+            echo "✗ Build FAILED — #${BUILD_NUMBER}"
+            echo "========================================="
+            updateGitlabCommitStatus name: 'deploy', state: 'failed'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

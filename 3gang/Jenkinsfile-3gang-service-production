@@ -115,6 +115,7 @@ BUILDSSH
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman rm ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
+    --network 3gang-net \\
     -e SERVER_PORT=9000 \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
     -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.101:1521/LB" \\
