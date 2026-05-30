@@ -21,18 +21,46 @@ services:
   # =========================================================
   # 2. BRANCH 3GANG (Domain: api.3gang.vn)
   # =========================================================
-  - name: 3gang-core-service
-    url: http://3gang-backend:3000
+  - name: 3gang-tsio-service-prod
+    url: http://192.168.210.101:8000
     routes:
-      - name: 3gang-main-route
+      - name: tsio-prod-route
         hosts: ["api.3gang.vn"]
-        paths: ["/"]              # Tiếp nhận toàn bộ traffic của 3Gang (trừ fmarket nếu dùng chung domain)
-        strip_path: false
+        paths: ["/p"]
+        strip_path: true
     plugins:
-      - name: cors
+      - name: request-transformer
         config:
-          origins: ["https://app.3gang.vn"]
-          credentials: true
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.3gang.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.3gang.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+  - name: 3gang-tsio-fe-prod
+    url: http://192.168.210.101:8800
+    routes:
+      - name: tsio-fe-prod-route
+        hosts: ["app.3gang.vn"]
+        paths: ["/p/tsio"]
+        strip_path: true
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
 
   # =========================================================
   # 3. SERVICE FMARKET (Thuộc nhánh 3Gang)

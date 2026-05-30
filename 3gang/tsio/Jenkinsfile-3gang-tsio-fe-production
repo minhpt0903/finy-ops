@@ -17,15 +17,16 @@ pipeline {
     }
 
     environment {
-        APP_NAME       = 'core-fe-console-hub'
+        APP_NAME       = '3gang-tsio-fe'
         SPRING_PROFILE = 'prod'
         APP_PORT       = '8800'
-        DOCKERHUB_REPO = 'minhpt3g/console-hub'
+        DOCKERHUB_REPO = 'minhpt3g/3gang-tsio-fe'
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
-        API_URL        = 'https://api.3gang.vn/p/auth/api'
-        AUTH_URL       = 'https://api.3gang.vn/p/auth'
-        BFF_URL        = 'https://api.3gang.vn/p/auth'
-        BASE_HREF      = '/p/hub/'
+        API_URL        = 'https://api.3gang.vn/p/tsio/api'
+        AUTH_URL       = 'https://api.finy.vn/p/auth'
+        BFF_URL        = 'https://api.finy.vn/p/auth'
+        AUTH_CLIENT_ID = 'tsio'
+        BASE_HREF      = '/p/tsio/'
     }
 
     stages {
@@ -83,8 +84,8 @@ pipeline {
             steps {
                 updateGitlabCommitStatus name: 'deploy', state: 'running'
                 sh """
-                        ssh jen@fn-api-01 bash << 'ENDSSH'
-sudo podman network exists finy-net || sudo podman network create finy-net
+                        ssh jen@3g-service-01 bash << 'ENDSSH'
+sudo podman network exists 3gang-net || sudo podman network create 3gang-net
 sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
@@ -92,7 +93,7 @@ sudo podman rm   ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 
 sudo podman run -d \
     --name ${APP_NAME}-${SPRING_PROFILE} \
-    --network finy-net \
+    --network 3gang-net \
     -e BASE_HREF='${BASE_HREF}' \
     -e API_URL='${API_URL}' \
     -e AUTH_URL='${AUTH_URL}' \
