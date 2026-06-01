@@ -125,7 +125,7 @@ sudo podman run -d \\
     -e BFF_COOKIE_SAME_SITE=None \
     -e BFF_PUBLIC_BASE_URL=https://api.finy.vn/p/auth \
     -e BFF_AUTHORIZATION_SERVER_URL=https://api.finy.vn/p \
-    -e CORS_ALLOWED_ORIGINS=https://app.finy.vn,https://api.finy.vn \\
+    -e CORS_ALLOWED_ORIGINS=https://app.finy.vn,https://app.3gang.vn,https://api.finy.vn,https://api.3gang.vn \\
     -e TZ=Asia/Ho_Chi_Minh \\
     -e SHOW_TEST_RIBBON=false \\
     -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\

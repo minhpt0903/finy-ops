@@ -107,7 +107,7 @@ sudo podman run -d \\
     -e APP_NAME=${APP_NAME} \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
     -e SERVER_PORT=8000 \\
-    -e CONTEXT_PATH=/t/tsio \\
+    -e CONTEXT_PATH=/tsio \\
     -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.101:1521/LB" \\
     -e DB_USERNAME='${DB_USER}' \\
     -e DB_PASSWORD='${DB_PASS}' \\
@@ -117,13 +117,13 @@ sudo podman run -d \\
     -e REDIS_DB=0 \\
     -e JWT_ISSUER=${JWT_ISSUER} \\
     -e AUTHORIZED_CLIENT_IDS=tsio \\
-    -e BFF_COOKIE_DOMAIN=.finy.vn \\
+    -e BFF_COOKIE_DOMAIN=.3gang.vn \\
     -e BFF_COOKIE_SAME_SITE=None \\
-    -e BFF_PUBLIC_BASE_URL=https://api.finy.vn/p/tsio \\
+    -e BFF_PUBLIC_BASE_URL=https://api.3gang.vn/p/tsio \\
     -e BFF_AUTHORIZATION_SERVER_URL=https://api.finy.vn/p/auth \\
-    -e BFF_DEFAULT_FRONTEND_REDIRECT=https://app.finy.vn/dashboard \\
+    -e BFF_DEFAULT_FRONTEND_REDIRECT=https://app.3gang.vn/p/tsio/dashboard \\
     -e SSO_DEFAULT_CLIENT_ID=tsio \\
-    -e CORS_ALLOWED_ORIGINS=https://app.finy.vn,https://api.finy.vn \\
+    -e CORS_ALLOWED_ORIGINS=https://app.3gang.vn,https://api.finy.vn \\
     -e LOG_PATH=/app/logs \\
     -e TZ=Asia/Ho_Chi_Minh \\
     -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
