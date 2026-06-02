@@ -19,7 +19,7 @@ pipeline {
     environment {
         APP_NAME       = '3gang-tsio-service'
         SPRING_PROFILE = 'test'
-        APP_PORT       = '8000'
+        APP_PORT       = '9007'
         DOCKERHUB_REPO = 'minhpt3g/3gang-tsio-service'
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
         JWT_ISSUER     = 'https://api.finy.vn/t/auth'
@@ -83,7 +83,7 @@ pipeline {
                 updateGitlabCommitStatus name: 'deploy', state: 'running'
                 withCredentials([
                     usernamePassword(
-                        credentialsId: '3gang-db-test-credential',
+                        credentialsId: '3gang-db-test',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
                     ),
@@ -93,7 +93,6 @@ pipeline {
                         ssh jen@lb-test-01 bash << 'ENDSSH'
 set -e
 mkdir -p /home/tsio/logs && sudo chown 1001:1001 /home/tsio/logs && chmod 755 /home/tsio/logs
-sudo podman network exists 3gang-net || sudo podman network create 3gang-net
 sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
@@ -101,14 +100,15 @@ sudo podman rm   ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 
 sudo podman run -d \\
     --name ${APP_NAME}-${SPRING_PROFILE} \\
-    --network 3gang-net \\
+    --network finy-net \\
     -e APP_NAME=${APP_NAME} \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
-    -e SERVER_PORT=8000 \\
+    -e SERVER_PORT=9000 \\
     -e CONTEXT_PATH=/tsio \\
-    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.101:1521/LB" \\
+    -e DB_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
     -e DB_USERNAME='${DB_USER}' \\
     -e DB_PASSWORD='${DB_PASS}' \\
+    -e SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.OracleDialect \\
     -e REDIS_HOST=192.168.30.110 \\
     -e REDIS_PORT=6379 \\
     -e REDIS_PASSWORD='${REDIS_PASS}' \\
@@ -126,7 +126,7 @@ sudo podman run -d \\
     -e TZ=Asia/Ho_Chi_Minh \\
     -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
     -e VPS_NAME=lb-test-01 \\
-    -p ${APP_PORT}:8000 \\
+    -p ${APP_PORT}:9000 \\
     -v /home/tsio/logs:/app/logs:Z \\
     --restart unless-stopped \\
     docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}

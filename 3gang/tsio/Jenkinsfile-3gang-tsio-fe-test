@@ -19,7 +19,7 @@ pipeline {
     environment {
         APP_NAME       = '3gang-tsio-fe'
         SPRING_PROFILE = 'test'
-        APP_PORT       = '8800'
+        APP_PORT       = '9008'
         DOCKERHUB_REPO = 'minhpt3g/3gang-tsio-fe'
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
         API_URL        = 'https://api.3gang.vn/t/tsio/api'
@@ -85,7 +85,6 @@ pipeline {
                 updateGitlabCommitStatus name: 'deploy', state: 'running'
                 sh """
                         ssh jen@lb-test-01 bash << 'ENDSSH'
-podman network exists 3gang-net || podman network create 3gang-net
 sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
@@ -93,7 +92,7 @@ sudo podman rm   ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 
 sudo podman run -d \
     --name ${APP_NAME}-${SPRING_PROFILE} \
-    --network 3gang-net \
+    --network finy-net \
     -e BASE_HREF='${BASE_HREF}' \
     -e API_URL='${API_URL}' \
     -e AUTH_URL='${AUTH_URL}' \
