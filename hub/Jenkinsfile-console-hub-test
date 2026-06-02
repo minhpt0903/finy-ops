@@ -26,6 +26,8 @@ pipeline {
         AUTH_URL       = 'https://api.finy.vn/t/auth'
         BFF_URL        = 'https://api.finy.vn/t/auth'
         BASE_HREF      = '/t/hub/'
+        HUB_ACCOUNTS_ROUTE = '/t/hub/accounts'
+        TSIO_ROUTE = 'https://app.3gang.vn/t/tsio/dashboard'
     }
 
     stages {
@@ -97,6 +99,8 @@ sudo podman run -d \
     -e API_URL='${API_URL}' \
     -e AUTH_URL='${AUTH_URL}' \
     -e BFF_URL='${BFF_URL}' \
+    -e HUB_ACCOUNTS_ROUTE='${HUB_ACCOUNTS_ROUTE}' \
+    -e TSIO_ROUTE='${TSIO_ROUTE}' \
     -e TZ=Asia/Ho_Chi_Minh \
     -p ${APP_PORT}:80 \
     --restart unless-stopped \
