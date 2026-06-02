@@ -10,19 +10,19 @@ pipeline {
         gitlab(
             triggerOnPush: true,
             triggerOnMergeRequest: false,
-            triggerOnAcceptedMergeRequest: true,
+            triggerOnAcceptedMergeRequest: false,
             branchFilterType: 'NameBasedFilter',
             includeBranchesSpec: 'test'
         )
     }
 
     environment {
-        APP_NAME       = 'core-auth-service'
+        APP_NAME       = 'finy-fio-service'
         SPRING_PROFILE = 'test'
-        APP_PORT       = '8000'
-        DOCKERHUB_REPO = 'minhpt3g/core-auth-service'
+        APP_PORT       = '9101'
+        DOCKERHUB_REPO = 'minhpt3g/finy-fio-service'
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
-        JWT_ISSUER     = 'auth-service'
+        JWT_ISSUER     = 'https://api.finy.vn/t/auth'
     }
 
     stages {
@@ -39,7 +39,7 @@ pipeline {
                     echo "=========================================="
                 }
                 git branch: 'test',
-                    url: 'http://gitlab.finy.vn/core/auth-service.git',
+                    url: 'http://gitlab.finy.vn/finy/tools/fio-service.git',
                     credentialsId: 'gitlab-finy-credentials'
                 updateGitlabCommitStatus name: 'checkout', state: 'success'
             }
@@ -83,7 +83,7 @@ pipeline {
                 updateGitlabCommitStatus name: 'deploy', state: 'running'
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'core-db-postgres-test',
+                        credentialsId: 'finy-db-oracle-test',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
                     ),
@@ -91,58 +91,48 @@ pipeline {
                 ]) {
                     sh """
                         ssh jen@lb-test-01 bash << 'ENDSSH'
-mkdir -p /home/core/auth/logs && chmod 777 /home/core/auth/logs
-mkdir -p /home/core/auth/rsa
-sudo chown 1001:1001 /home/core/auth/rsa/*.pem 2>/dev/null || true
-sudo chmod 600 /home/core/auth/rsa/private.pem 2>/dev/null || true
-sudo chmod 644 /home/core/auth/rsa/public.pem 2>/dev/null || true
-podman network exists finy-net || podman network create finy-net
+set -e
+mkdir -p /home/fio/logs && sudo chown 1001:1001 /home/fio/logs && chmod 755 /home/fio/logs
+sudo podman network exists finy-net || sudo podman network create finy-net
 sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman rm   ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 
-sudo podman run -d \
-    --name ${APP_NAME}-${SPRING_PROFILE} \
-    --network finy-net \
-    -e APP_NAME=${APP_NAME} \
-    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
-    -e SERVER_PORT=8000 \
-    -e CONTEXT_PATH=/auth \
-    -e DB_HOST=192.168.210.102 \
-    -e DB_PORT=5432 \
-    -e DB_NAME=auth_test \
-    -e DB_USERNAME='${DB_USER}' \
-    -e DB_PASSWORD='${DB_PASS}' \
-    -e REDIS_HOST=redis-core \
-    -e REDIS_PORT=6379 \
-    -e REDIS_PASSWORD='${REDIS_PASS}' \
-    -e JWT_ISSUER=${JWT_ISSUER} \
-    -e RSA_PRIVATE_KEY=file:/app/rsa/private.pem \
-    -e RSA_PUBLIC_KEY=file:/app/rsa/public.pem \
-    -e BFF_COOKIE_DOMAIN=.finy.vn \
-    -e BFF_COOKIE_SAME_SITE=None \
-    -e BFF_PUBLIC_BASE_URL=https://api.finy.vn/t/auth \
-    -e BFF_AUTHORIZATION_SERVER_URL=https://api.finy.vn/t \
-    -e CORS_ALLOWED_ORIGINS=https://app.finy.vn,https://app.3gang.vn,https://api.finy.vn,https://api.3gang.vn,http://localhost:4200 \\
-    -e TZ=Asia/Ho_Chi_Minh \
-    -e LOKI_URL=http://loki:3100/loki/api/v1/push \
-    -e VPS_NAME=lb-test-01 \
-    -p ${APP_PORT}:8000 \
-    -v /home/core/auth/logs:/logs:Z \
-    -v /home/core/auth/rsa:/app/rsa:ro,Z \
-    --restart unless-stopped \
+sudo podman run -d \\
+    --name ${APP_NAME}-${SPRING_PROFILE} \\
+    --network finy-net \\
+    -e APP_NAME=${APP_NAME} \\
+    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+    -e SERVER_PORT=8000 \\
+    -e CONTEXT_PATH=/fio \\
+    -e DB_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
+    -e DB_USERNAME='${DB_USER}' \\
+    -e DB_PASSWORD='${DB_PASS}' \\
+    -e SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.OracleDialect \\
+    -e REDIS_HOST=192.168.30.110 \\
+    -e REDIS_PORT=6379 \\
+    -e REDIS_PASSWORD='${REDIS_PASS}' \\
+    -e REDIS_DB=0 \\
+    -e JWT_ISSUER=${JWT_ISSUER} \\
+    -e LOG_PATH=/app/logs \\
+    -e TZ=Asia/Ho_Chi_Minh \\
+    -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
+    -e VPS_NAME=lb-test-01 \\
+    -p ${APP_PORT}:8000 \\
+    -v /home/fio/logs:/app/logs:Z \\
+    --restart unless-stopped \\
     docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
 sleep 10
 sudo podman logs --tail 30 ${APP_NAME}-${SPRING_PROFILE}
 
-sudo podman images --format "{{.Repository}}:{{.Tag}}" | \
-    grep "^docker.io/${DOCKERHUB_REPO}:${SPRING_PROFILE}-[0-9]" | \
-    sort -t'-' -k2 -n | \
-    head -n -7 | \
+sudo podman images --format "{{.Repository}}:{{.Tag}}" | \\
+    grep "^docker.io/${DOCKERHUB_REPO}:${SPRING_PROFILE}-[0-9]" | \\
+    sort -t'-' -k2 -n | \\
+    head -n -7 | \\
     xargs -r sudo podman image rm 2>/dev/null || true
-sudo podman ps -a --filter "name=${APP_NAME}" --filter "status=exited" -q | \
+sudo podman ps -a --filter "name=${APP_NAME}" --filter "status=exited" -q | \\
     xargs -r sudo podman rm 2>/dev/null || true
 echo "Cleanup done for ${APP_NAME}"
 ENDSSH

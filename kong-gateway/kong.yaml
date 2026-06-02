@@ -5,41 +5,56 @@ services:
   # =========================================================
   # 1. BRANCH FINY (Domain: api.finy.vn)
   # =========================================================
-  - name: finy-core-service
-    url: http://finy-backend:8080
+  - name: finy-fio-service-test
+    url: http://192.168.20.200:9101/fio
     routes:
-      - name: finy-main-route
+      - name: finy-fio-service-test-route
         hosts: ["api.finy.vn"]
-        paths: ["/"]              # Tiếp nhận toàn bộ traffic của Finy
-        strip_path: false
-    plugins:
-      - name: cors                # Bật CORS bảo vệ, cho phép FE gọi vào không bị block
-        config:
-          origins: ["https://app.finy.vn"]
-          credentials: true
-
-  # =========================================================
-  # 2. BRANCH 3GANG (Domain: api.3gang.vn)
-  # =========================================================
-  - name: 3gang-tsio-service-prod
-    url: http://192.168.210.101:8000
-    routes:
-      - name: tsio-prod-route
-        hosts: ["api.3gang.vn"]
-        paths: ["/p"]
+        paths: ["/t/fio"]
         strip_path: true
     plugins:
       - name: request-transformer
         config:
           add:
             headers:
-              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Prefix:/t/fio"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/t/fio"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+  # =========================================================
+  # 2. BRANCH 3GANG (Domain: api.3gang.vn)
+  # =========================================================
+  - name: 3gang-tsio-service-prod
+    url: http://192.168.210.101:8000/tsio
+    routes:
+      - name: tsio-prod-route
+        hosts: ["api.3gang.vn"]
+        paths: ["/p/tsio"]
+        strip_path: true
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/p/tsio"
               - "X-Forwarded-Proto:https"
               - "X-Forwarded-Port:443"
               - "X-Forwarded-Host:api.3gang.vn"
           replace:
             headers:
-              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Prefix:/p/tsio"
               - "X-Forwarded-Proto:https"
               - "X-Forwarded-Port:443"
               - "X-Forwarded-Host:api.3gang.vn"
@@ -54,6 +69,47 @@ services:
       - name: tsio-fe-prod-route
         hosts: ["app.3gang.vn"]
         paths: ["/p/tsio"]
+        strip_path: true
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+  - name: 3gang-tsio-service-test
+    url: http://192.168.20.200:9007
+    routes:
+      - name: tsio-test-route
+        hosts: ["api.3gang.vn"]
+        paths: ["/t"]
+        strip_path: true
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/t"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.3gang.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/t"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.3gang.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+  - name: 3gang-tsio-fe-test
+    url: http://192.168.20.200:9008
+    routes:
+      - name: tsio-fe-test-route
+        hosts: ["app.3gang.vn"]
+        paths: ["/t/tsio"]
         strip_path: true
     plugins:
       - name: rate-limiting
@@ -86,24 +142,24 @@ services:
   # Mở cổng công khai qua Gateway cho Auth và Minio
   # =========================================================
   - name: core-auth-test
-    url: http://192.168.20.200:8000
+    url: http://192.168.20.200:8000/auth
     routes:
       - name: auth-test-route
         hosts: ["api.finy.vn"]
-        paths: ["/t"]
+        paths: ["/t/auth"]
         strip_path: true
     plugins:
       - name: request-transformer
         config:
           add:
             headers:
-              - "X-Forwarded-Prefix:/t"
+              - "X-Forwarded-Prefix:/t/auth"
               - "X-Forwarded-Proto:https"
               - "X-Forwarded-Port:443"
               - "X-Forwarded-Host:api.finy.vn"
           replace:
             headers:
-              - "X-Forwarded-Prefix:/t"
+              - "X-Forwarded-Prefix:/t/auth"
               - "X-Forwarded-Proto:https"
               - "X-Forwarded-Port:443"
               - "X-Forwarded-Host:api.finy.vn"
@@ -114,24 +170,24 @@ services:
           policy: local
 
   - name: core-auth-prod
-    url: http://192.168.30.110:8000
+    url: http://192.168.30.110:8000/auth
     routes:
       - name: auth-prod-route
         hosts: ["api.finy.vn"]
-        paths: ["/p"]
+        paths: ["/p/auth"]
         strip_path: true
     plugins:
       - name: request-transformer
         config:
           add:
             headers:
-              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Prefix:/p/auth"
               - "X-Forwarded-Proto:https"
               - "X-Forwarded-Port:443"
               - "X-Forwarded-Host:api.finy.vn"
           replace:
             headers:
-              - "X-Forwarded-Prefix:/p"
+              - "X-Forwarded-Prefix:/p/auth"
               - "X-Forwarded-Proto:https"
               - "X-Forwarded-Port:443"
               - "X-Forwarded-Host:api.finy.vn"
