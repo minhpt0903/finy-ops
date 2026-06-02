@@ -117,7 +117,7 @@ sudo podman run -d \\
     -e REDIS_DB=0 \\
     -e JWT_ISSUER=${JWT_ISSUER} \\
     -e AUTHORIZED_CLIENT_IDS=tsio \\
-    -e BFF_COOKIE_DOMAIN=.3gang.vn \\
+    -e BFF_COOKIE_DOMAIN=3gang.vn \\
     -e BFF_COOKIE_SAME_SITE=None \\
     -e BFF_PUBLIC_BASE_URL=https://api.3gang.vn/p/tsio \\
     -e BFF_AUTHORIZATION_SERVER_URL=https://api.finy.vn/p/auth \\
