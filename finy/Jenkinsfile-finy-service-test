@@ -103,7 +103,7 @@ BUILDSSH
                 }
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'db-finy-test-credentials',
+                        credentialsId: 'finy-db-oracle-test',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
                     )

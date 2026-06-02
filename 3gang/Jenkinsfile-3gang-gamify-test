@@ -103,7 +103,7 @@ BUILDSSH
                 }
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'db-3gang-gamify-test-credentials',
+                        credentialsId: '3gang-db-test',
                         usernameVariable: 'DB_USER',
                         passwordVariable: 'DB_PASS'
                     )

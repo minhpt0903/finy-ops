@@ -13,7 +13,7 @@ Tự động build, tạo image, deploy và archive artifact cho ứng dụng 3g
 ## Credentials cần tạo trên Jenkins
 - `git-3gang-gamify-test-url`: Secret text (URL repo Git)
 - `git-credentials`: Username with password (truy cập repo Git)
-- `db-3gang-gamify-test-credentials`: Username with password (DB test)
+- `3gang-db-test`: Username with password (DB test)
 - `db-3gang-gamify-test-url`: Secret text (JDBC URL DB test)
 
 ## Biến môi trường
