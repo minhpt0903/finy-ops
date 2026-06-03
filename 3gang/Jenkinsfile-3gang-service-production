@@ -132,9 +132,9 @@ sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     -p ${APP_PORT}:9000 \\
     -v /home/3GangProd/application.properties:/application.properties:ro \\
     -v /home/3GangProd/service-account-file.json:/service-account-file.json:ro \\
-    -v /home/3GangProd/logs:/logs \\
-    -v /home/3GangProd/contracts:/contracts \\
-    -v /home/3GangProd/images:/images \\
+    -v /home/3GangProd/logs:/home/default/logs \\
+    -v /home/3GangProd/contracts:/home/default/contracts \\
+    -v /home/3GangProd/images:/home/default/images \\
     -v /home/3GangProd/private_key.der:/private_key.der:ro \\
     -v /home/3GangProd/ekyc:/home/3GangProd/ekyc \\
     --restart unless-stopped \\

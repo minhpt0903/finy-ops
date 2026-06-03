@@ -115,7 +115,7 @@ sudo podman run -d \\
     -e LOKI_URL=http://loki:3100/loki/api/v1/push \\
     -e VPS_NAME=lb-test-01 \\
     -p ${APP_PORT}:8000 \\
-    -v /home/core/notification/logs:/logs:Z \\
+    -v /home/core/notification/logs:/app/logs:Z \\
     -v /home/core/notification/service-account.json:/app/service-account.json:ro,Z \\
     --restart unless-stopped \\
     docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
