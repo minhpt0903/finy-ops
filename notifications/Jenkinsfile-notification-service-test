@@ -89,7 +89,7 @@ pipeline {
                 ]) {
                     sh """
                         ssh jen@lb-test-01 bash << 'ENDSSH'
-mkdir -p /home/core/notification/logs && chmod 777 /home/core/notification/logs
+mkdir -p /home/core/notification/logs && sudo chown 1001:1001 /home/core/notification/logs && chmod 755 /home/core/notification/logs
 podman network exists finy-net || podman network create finy-net
 sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 

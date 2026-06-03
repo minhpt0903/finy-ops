@@ -125,7 +125,7 @@ sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     -e TZ=Asia/Ho_Chi_Minh \\
     -e GOOGLE_APPLICATION_CREDENTIALS=/service-account-file.json \\
     -e LOKI_URL=http://192.168.20.200:3100/loki/api/v1/push \\
-    -e APP_NAME=${APP_NAME}-${SPRING_PROFILE} \\
+    -e APP_NAME=${APP_NAME} \\
     -e VPS_NAME=prod-server \\
     -e LOG_PATH=/logs \\
     -e PATH_AUTOSAVINGFILE_EKYC=/home/3GangProd/ekyc/ \\
