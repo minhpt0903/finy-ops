@@ -22,7 +22,7 @@ pipeline {
         APP_PORT       = '8000'
         DOCKERHUB_REPO = 'minhpt3g/core-auth-service'
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
-        JWT_ISSUER     = 'auth-service'
+        JWT_ISSUER     = 'https://api.finy.vn/t/auth'
     }
 
     stages {
@@ -120,7 +120,8 @@ sudo podman run -d \
     -e JWT_ISSUER=${JWT_ISSUER} \
     -e RSA_PRIVATE_KEY=file:/app/rsa/private.pem \
     -e RSA_PUBLIC_KEY=file:/app/rsa/public.pem \
-    -e BFF_COOKIE_DOMAIN=.finy.vn \
+    -e BFF_COOKIE_DOMAIN=finy.vn \
+    -e AUTH_ISSUER_URL=https://api.finy.vn/t/auth \\
     -e BFF_COOKIE_SAME_SITE=None \
     -e BFF_PUBLIC_BASE_URL=https://api.finy.vn/t/auth \
     -e BFF_AUTHORIZATION_SERVER_URL=https://api.finy.vn/t \
@@ -171,3 +172,4 @@ ENDSSH
         }
     }
 }
+

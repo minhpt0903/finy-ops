@@ -24,7 +24,7 @@ pipeline {
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
         API_URL        = 'https://api.3gang.vn/t/tsio/api'
         AUTH_URL       = 'https://api.finy.vn/t/auth'
-        BFF_URL        = 'https://api.finy.vn/t/auth'
+        BFF_URL        = 'https://api.3gang.vn/t/tsio'
         AUTH_CLIENT_ID = 'tsio'
         BASE_HREF      = '/t/tsio/'
     }

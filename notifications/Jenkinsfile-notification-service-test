@@ -12,21 +12,16 @@ pipeline {
             triggerOnMergeRequest: false,
             triggerOnAcceptedMergeRequest: true,
             branchFilterType: 'NameBasedFilter',
-            includeBranchesSpec: 'main'
+            includeBranchesSpec: 'test'
         )
     }
 
     environment {
-        APP_NAME       = '3gang-tsio-fe'
-        SPRING_PROFILE = 'prod'
-        APP_PORT       = '8800'
-        DOCKERHUB_REPO = 'minhpt3g/3gang-tsio-fe'
+        APP_NAME       = 'core-notification-service'
+        SPRING_PROFILE = 'test'
+        APP_PORT       = '8100'
+        DOCKERHUB_REPO = 'minhpt3g/core-notification-service'
         IMAGE_TAG      = "${SPRING_PROFILE}-${BUILD_NUMBER}"
-        API_URL        = 'https://api.3gang.vn/p/tsio/api'
-        AUTH_URL       = 'https://api.finy.vn/p/auth'
-        BFF_URL        = 'https://api.3gang.vn/p/tsio'
-        AUTH_CLIENT_ID = 'tsio'
-        BASE_HREF      = '/p/tsio/'
     }
 
     stages {
@@ -42,8 +37,8 @@ pipeline {
                     echo "  Deploy port  : ${APP_PORT}"
                     echo "=========================================="
                 }
-                git branch: 'main',
-                    url: 'http://gitlab.finy.vn/3gang/tools/tsio-fe.git',
+                git branch: 'test',
+                    url: 'http://gitlab.finy.vn/core/notification-service.git',
                     credentialsId: 'gitlab-finy-credentials'
                 updateGitlabCommitStatus name: 'checkout', state: 'success'
             }
@@ -53,6 +48,7 @@ pipeline {
             steps {
                 updateGitlabCommitStatus name: 'build', state: 'running'
                 withCredentials([
+                    string(credentialsId: 'gitlab-finy-token', variable: 'GITLAB_TOKEN'),
                     usernamePassword(
                         credentialsId: 'dockerhub-credentials',
                         usernameVariable: 'DOCKER_USER',
@@ -61,6 +57,7 @@ pipeline {
                 ]) {
                     sh '''
                         podman build \
+                            --build-arg GITLAB_TOKEN=${GITLAB_TOKEN} \
                             -t ${DOCKERHUB_REPO}:${IMAGE_TAG} \
                             -t ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest \
                             .
@@ -68,8 +65,8 @@ pipeline {
                         echo ${DOCKER_PASS} | podman login docker.io \
                             -u ${DOCKER_USER} --password-stdin
 
-                        podman push --format=docker ${DOCKERHUB_REPO}:${IMAGE_TAG}
-                        podman push --format=docker ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest
+                        podman push ${DOCKERHUB_REPO}:${IMAGE_TAG}
+                        podman push ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest
 
                         podman rmi ${DOCKERHUB_REPO}:${IMAGE_TAG} || true
                         podman rmi ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest || true
@@ -83,40 +80,60 @@ pipeline {
         stage('Deploy') {
             steps {
                 updateGitlabCommitStatus name: 'deploy', state: 'running'
-                sh """
-                        ssh jen@3g-service-01 bash << 'ENDSSH'
-sudo podman network exists 3gang-net || sudo podman network create 3gang-net
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'core-db-postgres-test',
+                        usernameVariable: 'DB_USER',
+                        passwordVariable: 'DB_PASS'
+                    )
+                ]) {
+                    sh """
+                        ssh jen@lb-test-01 bash << 'ENDSSH'
+mkdir -p /home/core/notification/logs && chmod 777 /home/core/notification/logs
+podman network exists finy-net || podman network create finy-net
 sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman rm   ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 
-sudo podman run -d \
-    --name ${APP_NAME}-${SPRING_PROFILE} \
-    --network 3gang-net \
-    -e BASE_HREF='${BASE_HREF}' \
-    -e API_URL='${API_URL}' \
-    -e AUTH_URL='${AUTH_URL}' \
-    -e BFF_URL='${BFF_URL}' \
-    -e TZ=Asia/Ho_Chi_Minh \
-    -p ${APP_PORT}:80 \
-    --restart unless-stopped \
+sudo podman run -d \\
+    --name ${APP_NAME}-${SPRING_PROFILE} \\
+    --network finy-net \\
+    -e CONTEXT_PATH=/notis \\
+    -e APP_NAME=${APP_NAME} \\
+    -e SERVER_PORT=8000 \\
+    -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
+    -e DB_URL="jdbc:postgresql://192.168.210.102:5432/notis_test" \\
+    -e DB_USERNAME='${DB_USER}' \\
+    -e DB_PASSWORD='${DB_PASS}' \\
+    -e KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
+    -e AUTH_SERVICE_URL=http://core-auth-service-test/auth/api/v1/auth/public-key \\
+    -e AUTH_ISSUER=http://core-auth-service-test \\
+    -e FIREBASE_SERVICE_ACCOUNT_PATH=/app/service-account.json \\
+    -e TZ=Asia/Ho_Chi_Minh \\
+    -e LOG_PATH=/app/logs \\
+    -e LOKI_URL=http://loki:3100/loki/api/v1/push \\
+    -e VPS_NAME=lb-test-01 \\
+    -p ${APP_PORT}:8000 \\
+    -v /home/core/notification/logs:/logs:Z \\
+    -v /home/core/notification/service-account.json:/app/service-account.json:ro,Z \\
+    --restart unless-stopped \\
     docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
 
-sleep 5
-sudo podman logs --tail 20 ${APP_NAME}-${SPRING_PROFILE}
+sleep 10
+sudo podman logs --tail 30 ${APP_NAME}-${SPRING_PROFILE}
 
-sudo podman images --format "{{.Repository}}:{{.Tag}}" | \
-    grep "^docker.io/${DOCKERHUB_REPO}:${SPRING_PROFILE}-[0-9]" | \
-    sort -t'-' -k2 -n | \
-    head -n -7 | \
+sudo podman images --format "{{.Repository}}:{{.Tag}}" | \\
+    grep "^docker.io/${DOCKERHUB_REPO}:${SPRING_PROFILE}-[0-9]" | \\
+    sort -t'-' -k2 -n | \\
+    head -n -7 | \\
     xargs -r sudo podman image rm 2>/dev/null || true
-sudo podman ps -a --filter "name=${APP_NAME}" --filter "status=exited" -q | \
+sudo podman ps -a --filter "name=${APP_NAME}" --filter "status=exited" -q | \\
     xargs -r sudo podman rm 2>/dev/null || true
 echo "Cleanup done for ${APP_NAME}"
 ENDSSH
                     """
-                updateGitlabCommitStatus name: 'deploy', state: 'success'
+                }
             }
         }
 
@@ -127,6 +144,7 @@ ENDSSH
             echo "========================================="
             echo "✓ Build SUCCESS — ${DOCKERHUB_REPO}:${IMAGE_TAG}"
             echo "========================================="
+            updateGitlabCommitStatus name: 'deploy', state: 'success'
         }
         failure {
             echo "========================================="
