@@ -28,6 +28,7 @@ pipeline {
         BASE_HREF      = '/t/hub/'
         HUB_ACCOUNTS_ROUTE = '/t/hub/accounts'
         TSIO_ROUTE = 'https://app.3gang.vn/t/tsio/dashboard'
+        FIO_ROUTE = '/t/fio/dashboard'
     }
 
     stages {
