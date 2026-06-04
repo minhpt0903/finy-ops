@@ -135,7 +135,7 @@ sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     -e APP_NAME=${APP_NAME} \\
     -e VPS_NAME=prod-server \\
     -e LOG_PATH=/home/finy-econtract-service/logs \\
-    -e FINY_URL=https://apitest.finy.vn \\
+    -e FINY_URL=https://apigateway.lendbiz.vn \\
     -e FINY_CLIENT_DOMAIN="${FINY_CLIENT_DOMAIN}" \\
     -e VNPT_DOMAIN="${VNPT_DOMAIN}" \\
     -e VNPT_USERNAME="${VNPT_USERNAME}" \\
