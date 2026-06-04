@@ -4,6 +4,8 @@ pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr: '7'))
         gitLabConnection('gitlab-finy')
+        disableConcurrentBuilds(abortPrevious: true)
+        quietPeriod(30)
     }
 
     triggers {
