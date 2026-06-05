@@ -14,7 +14,7 @@ pipeline {
             triggerOnMergeRequest: false,
             triggerOnAcceptedMergeRequest: false,
             branchFilterType: 'NameBasedFilter',
-            includeBranchesSpec: 'New-3gang-test'
+            includeBranchesSpec: 'test'
         )
     }
 
@@ -37,12 +37,12 @@ pipeline {
                     echo "=========================================="
                     echo "Build Configuration:"
                     echo "  Environment: test"
-                    echo "  Git Branch: feature/tbg-3"
+                    echo "  Git Branch: test"
                     echo "  Spring Profile: ${SPRING_PROFILE}"
                     echo "  Application Port: ${APP_PORT}"
                     echo "=========================================="
                 }
-                git branch: 'New-3gang-test',
+                git branch: 'test',
                     url: "https://gitlab.finy.vn/3gang/api.git",
                     credentialsId: 'gitlab-finy-credentials'
             }
@@ -119,10 +119,11 @@ sudo podman rm ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman run -d --name ${APP_NAME}-${SPRING_PROFILE} \\
     --network finy-net \\
     -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \\
-    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.101:1521/LB" \\
+    -e SPRING_DATASOURCE_URL="jdbc:oracle:thin:@//172.16.10.100:1521/LB" \\
     -e SPRING_DATASOURCE_USERNAME="${DB_USER}" \\
     -e SPRING_DATASOURCE_PASSWORD="${DB_PASS}" \\
     -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \\
+    -e HOST_NOTIFICATIONS=core-notification-service-test:8000 \\
     -e TZ=Asia/Ho_Chi_Minh \\
     -e GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/service-account-file.json \\
     -e LOKI_URL=http://loki:3100/loki/api/v1/push \\

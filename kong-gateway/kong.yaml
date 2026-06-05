@@ -5,6 +5,48 @@ services:
   # =========================================================
   # 1. BRANCH FINY (Domain: api.finy.vn)
   # =========================================================
+  - name: finy-fio-service-prod
+    url: http://192.168.30.110:9010/fio
+    routes:
+      - name: finy-fio-service-prod-route
+        hosts: ["api.finy.vn"]
+        paths: ["/p/fio"]
+        strip_path: true
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/p/fio"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/p/fio"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+  - name: finy-fio-fe-prod
+    url: http://192.168.30.110:9011
+    routes:
+      - name: fio-prod-route
+        hosts: ["app.finy.vn"]
+        paths: ["/p/fio"]
+        strip_path: true
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
   - name: finy-fio-service-test
     url: http://192.168.20.200:9101/fio
     routes:
@@ -32,6 +74,7 @@ services:
           second: 100
           hour: 100000
           policy: local
+
   - name: finy-fio-fe-test
     url: http://192.168.20.200:9102
     routes:
@@ -45,7 +88,6 @@ services:
           second: 100
           hour: 100000
           policy: local
-
   # =========================================================
   # 2. BRANCH 3GANG (Domain: api.3gang.vn)
   # =========================================================
