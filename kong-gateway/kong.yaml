@@ -342,6 +342,49 @@ services:
   # 6. CỤM PRODUCTION (fn-api-01 — 192.168.30.110)
   # Truy cập qua /p/<tool>  — yêu cầu basic-auth
   # =========================================================
+  - name: minio-prod-api
+    url: http://minio-prod:9000
+    routes:
+      - name: minio-prod-api-route
+        hosts: ["api.finy.vn"]
+        paths: ["/p/oss"]
+        strip_path: true
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/p/oss"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/p/oss"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+  - name: minio-prod-console
+    url: http://minio-prod:9001
+    routes:
+      - name: minio-prod-console-route
+        hosts: ["app.finy.vn"]
+        paths: ["/p/oss"]
+        strip_path: true
+    plugins:
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
+
   - name: redpanda-prod-service
     url: http://192.168.30.110:3300
     routes:
