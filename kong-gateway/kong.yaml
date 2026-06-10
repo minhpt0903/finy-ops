@@ -308,6 +308,35 @@ services:
           hour: 100000
           policy: local
 
+
+  - name: core-storage-test
+    url: http://192.168.20.200:8200/storage
+    routes:
+      - name: storage-test-route
+        hosts: ["api.finy.vn"]
+        paths: ["/t/storage"]
+        strip_path: true
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Prefix:/t/storage"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+          replace:
+            headers:
+              - "X-Forwarded-Prefix:/t/storage"
+              - "X-Forwarded-Proto:https"
+              - "X-Forwarded-Port:443"
+              - "X-Forwarded-Host:api.finy.vn"
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 100000
+          policy: local
+
   # =========================================================
   # 5. CỤM TEST (lb-test-01 — 192.168.20.200)
   # Truy cập qua /t/<tool>  — không yêu cầu auth
