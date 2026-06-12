@@ -193,50 +193,161 @@ services:
           credentials: true
 
   # =========================================================
-  # 4. CHẶN /internal TRÊN MỌI PUBLIC DOMAIN
-  # Internal endpoints chỉ được gọi trực tiếp qua container network,
-  # không cho phép access qua Kong public gateway
+  # 4. /internal ENDPOINTS — CHỈ CHO PHÉP IP 14.232.214.44
+  # IP thật đọc từ header X-Real-IP do Nginx forward.
+  # Nginx cần có: proxy_set_header X-Real-IP $remote_addr;
   # =========================================================
-  - name: block-internal-endpoints
-    url: http://127.0.0.1:65535
+  - name: core-auth-test-internal
+    url: http://192.168.20.200:8000/auth/internal
     routes:
-      - name: block-internal-t-auth
+      - name: auth-test-internal-route
         hosts: ["api.finy.vn"]
         paths: ["/t/auth/internal"]
-        strip_path: false
-      - name: block-internal-p-auth
+        strip_path: true
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
+
+  - name: core-auth-prod-internal
+    url: http://192.168.30.110:8000/auth/internal
+    routes:
+      - name: auth-prod-internal-route
         hosts: ["api.finy.vn"]
         paths: ["/p/auth/internal"]
-        strip_path: false
-      - name: block-internal-t-fio
+        strip_path: true
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
+
+  - name: finy-fio-service-test-internal
+    url: http://192.168.20.200:9101/fio/internal
+    routes:
+      - name: fio-test-internal-route
         hosts: ["api.finy.vn"]
         paths: ["/t/fio/internal"]
-        strip_path: false
-      - name: block-internal-p-fio
+        strip_path: true
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
+
+  - name: finy-fio-service-prod-internal
+    url: http://192.168.30.110:9010/fio/internal
+    routes:
+      - name: fio-prod-internal-route
         hosts: ["api.finy.vn"]
         paths: ["/p/fio/internal"]
-        strip_path: false
-      - name: block-internal-t-notis
+        strip_path: true
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
+
+  - name: core-notis-test-internal
+    url: http://192.168.20.200:8100/notis/internal
+    routes:
+      - name: notis-test-internal-route
         hosts: ["api.finy.vn"]
         paths: ["/t/notis/internal"]
-        strip_path: false
-      - name: block-internal-t-storage
+        strip_path: true
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
+
+  - name: core-storage-test-internal
+    url: http://192.168.20.200:8200/storage/internal
+    routes:
+      - name: storage-test-internal-route
         hosts: ["api.finy.vn"]
         paths: ["/t/storage/internal"]
-        strip_path: false
-      - name: block-internal-t-tsio
+        strip_path: true
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
+
+  - name: tsio-test-internal
+    url: http://192.168.20.200:9007/tsio/internal
+    routes:
+      - name: tsio-test-internal-route
         hosts: ["api.3gang.vn"]
         paths: ["/t/tsio/internal"]
-        strip_path: false
-      - name: block-internal-p-tsio
+        strip_path: true
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
+
+  - name: tsio-prod-internal
+    url: http://192.168.210.101:8000/tsio/internal
+    routes:
+      - name: tsio-prod-internal-route
         hosts: ["api.3gang.vn"]
         paths: ["/p/tsio/internal"]
-        strip_path: false
+        strip_path: true
     plugins:
-      - name: request-termination
+      - name: pre-function
         config:
-          status_code: 403
-          message: "Forbidden: internal endpoints are not accessible via public gateway"
+          access:
+            - |
+              local ip = kong.request.get_header("x-real-ip") or kong.client.get_ip()
+              if ip ~= "14.232.214.44" then
+                return kong.response.exit(403,
+                  '{"message":"Forbidden","ip":"' .. ip .. '"}',
+                  {["Content-Type"] = "application/json"})
+              end
 
   # =========================================================
   # 5. CỤM CORE SERVICES (DÙNG CHUNG)
