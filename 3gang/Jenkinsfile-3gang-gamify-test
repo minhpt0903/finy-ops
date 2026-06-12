@@ -6,6 +6,7 @@ pipeline {
         gitLabConnection('gitlab-finy')
         disableConcurrentBuilds(abortPrevious: true)
         quietPeriod(30)
+        gitlabBuilds(builds: ['checkout', 'build', 'deploy'])
     }
 
     triggers {

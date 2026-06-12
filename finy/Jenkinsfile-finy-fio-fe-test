@@ -6,6 +6,7 @@ pipeline {
         gitLabConnection('gitlab-finy')
         disableConcurrentBuilds(abortPrevious: true)
         quietPeriod(30)
+        gitlabBuilds(builds: ['checkout', 'build', 'deploy'])
     }
 
     triggers {
@@ -54,29 +55,37 @@ pipeline {
         stage('Build & Push Image') {
             steps {
                 updateGitlabCommitStatus name: 'build', state: 'running'
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
-                    sh '''
-                        podman build \
-                            -t ${DOCKERHUB_REPO}:${IMAGE_TAG} \
-                            -t ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest \
-                            .
-
-                        echo ${DOCKER_PASS} | podman login docker.io \
-                            -u ${DOCKER_USER} --password-stdin
-
-                        podman push ${DOCKERHUB_REPO}:${IMAGE_TAG}
-                        podman push ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest
-
-                        podman rmi ${DOCKERHUB_REPO}:${IMAGE_TAG} || true
-                        podman rmi ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest || true
-                        podman logout docker.io
-                    '''
+                script {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'dockerhub-credentials',
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )
+                    ]) {
+                        sh '''
+                            podman build \
+                                -t ${DOCKERHUB_REPO}:${IMAGE_TAG} \
+                                -t ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest \
+                                .
+                        '''
+                        try {
+                            sh '''
+                                echo ${DOCKER_PASS} | podman login docker.io \
+                                    -u ${DOCKER_USER} --password-stdin
+                                podman push ${DOCKERHUB_REPO}:${IMAGE_TAG}
+                                podman push ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest
+                                podman rmi ${DOCKERHUB_REPO}:${IMAGE_TAG} || true
+                                podman rmi ${DOCKERHUB_REPO}:${SPRING_PROFILE}-latest || true
+                                podman logout docker.io
+                            '''
+                            env.DEPLOY_TAG = env.IMAGE_TAG
+                        } catch (pushErr) {
+                            echo "⚠️ Push Docker Hub thất bại: ${pushErr.message}"
+                            echo "⚠️ Deploy sẽ dùng image cũ: ${env.DOCKERHUB_REPO}:${env.SPRING_PROFILE}-latest"
+                            env.DEPLOY_TAG = "${env.SPRING_PROFILE}-latest"
+                        }
+                    }
                 }
                 updateGitlabCommitStatus name: 'build', state: 'success'
             }
@@ -87,7 +96,7 @@ pipeline {
                 updateGitlabCommitStatus name: 'deploy', state: 'running'
                 sh """
                         ssh jen@lb-test-01 bash << 'ENDSSH'
-sudo podman pull docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
+sudo podman pull docker.io/${DOCKERHUB_REPO}:${DEPLOY_TAG}
 
 sudo podman stop ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
 sudo podman rm   ${APP_NAME}-${SPRING_PROFILE} 2>/dev/null || true
@@ -102,7 +111,7 @@ sudo podman run -d \
     -e TZ=Asia/Ho_Chi_Minh \
     -p ${APP_PORT}:80 \
     --restart unless-stopped \
-    docker.io/${DOCKERHUB_REPO}:${IMAGE_TAG}
+    docker.io/${DOCKERHUB_REPO}:${DEPLOY_TAG}
 
 sleep 5
 sudo podman logs --tail 20 ${APP_NAME}-${SPRING_PROFILE}
